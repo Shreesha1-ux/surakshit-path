@@ -3,11 +3,12 @@ import { Sun, Moon } from 'lucide-react'
 import phonePreviewImg from '../assets/phone-preview.png'
 
 export default function HeroSection({ onExploreClick, theme, onToggleTheme }) {
-  const handleScroll = () => {
+  const handleScroll = (e) => {
+    if (e?.preventDefault) e.preventDefault()
     if (onExploreClick) {
-      onExploreClick()
+      onExploreClick(e)
     } else {
-      document.getElementById('workspace')?.scrollIntoView({ behavior: 'smooth' })
+      document.getElementById('workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }
 

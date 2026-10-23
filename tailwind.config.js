@@ -7,6 +7,11 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["'Plus Jakarta Sans'", "'Poppins'", "sans-serif"],
+        poppins: ["'Poppins'", "sans-serif"],
+        jakarta: ["'Plus Jakarta Sans'", "sans-serif"],
+      },
       colors: {
         border: "var(--border, #2F3336)",
         input: "var(--input, #2F3336)",

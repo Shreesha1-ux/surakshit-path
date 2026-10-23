@@ -1,48 +1,118 @@
-import React, { useRef, useState, useEffect } from 'react'
-import KineticGrid from '@/components/ui/kinetic-grid'
-import HeroSection from './components/HeroSection'
-import WorkspaceSection from './components/WorkspaceSection'
-import SOSButton from './components/SOSButton'
+import React, { useState, useEffect, useRef } from 'react'
+import BottomNav from './components/BottomNav'
+import HomeTab from './components/tabs/HomeTab'
+import RouteTab from './components/tabs/RouteTab'
+import ContactsTab from './components/tabs/ContactsTab'
+import CommunityTab from './components/tabs/CommunityTab'
+import ProfileTab from './components/tabs/ProfileTab'
+import AiChatModal from './components/AiChatModal'
+import ReportModal from './components/ReportModal'
+import { CheckCircle2, AlertTriangle, ExternalLink, MessageCircle, X } from 'lucide-react'
+
+const SOS_STORAGE_KEY = 'surakshit_sos_whatsapp'
+
+const DEFAULT_SOS_CONFIG = {
+  contactName: 'Emergency Contact',
+  phone: '+917676757424',
+  apiKey: '',
+  email: 'shreeshapoojary37@gmail.com',
+  dispatchMode: 'direct', // 'direct' | 'bot'
+}
 
 export default function App() {
-  const workspaceRef = useRef(null)
-  const [theme, setTheme] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('surakshit_theme') || 'dark'
-    }
-    return 'dark'
-  })
+  const [activeTab, setActiveTab] = useState('home')
+  const [theme] = useState('light')
 
-  // Global persistent Geolocation State (Requested on initial load)
+  // Live GPS Geolocation State (Continuous watchPosition)
   const [userLocation, setUserLocation] = useState(null)
-  const [locationWarning, setLocationWarning] = useState(null)
-  const [showLocationToast, setShowLocationToast] = useState(false)
+  const [userLocationName, setUserLocationName] = useState('Locating GPS...')
+  const [locationError, setLocationError] = useState(null)
 
-  // 1. Prompt GPS permissions immediately on initial load & watch continuously
+  // Route & Evaluation State
+  const [activeRoute, setActiveRoute] = useState('A')
+  const [routesData, setRoutesData] = useState({
+    startName: '',
+    destName: '',
+    dataSource: '',
+    confidence: '',
+    routes: {},
+  })
+  const [autoExpandRouteSearch, setAutoExpandRouteSearch] = useState(false)
+
+  // Modals & Sheets
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false)
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
+
+  // Toasts & Notifications
+  const [toastMessage, setToastMessage] = useState(null)
+  const [toastActionUrl, setToastActionUrl] = useState(null)
+  const toastTimeoutRef = useRef(null)
+
+  // Community Reports List
+  const [communityReports, setCommunityReports] = useState([])
+
+  // Recent Activity Log
+  const [recentActivity, setRecentActivity] = useState([
+    { text: 'GPS Location Calibrated', time: 'Just now' },
+  ])
+
+  // SOS Emergency Configuration
+  const [sosConfig, setSosConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem(SOS_STORAGE_KEY)
+      if (saved) return { ...DEFAULT_SOS_CONFIG, ...JSON.parse(saved) }
+    } catch (e) {}
+    return DEFAULT_SOS_CONFIG
+  })
+  const [sosStatus, setSosStatus] = useState('idle')
+
+  // Show Toast Helper
+  const showToast = (msg, actionUrl = null, duration = 4000) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current)
+    setToastMessage(msg)
+    setToastActionUrl(actionUrl)
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastMessage(null)
+      setToastActionUrl(null)
+    }, duration)
+  }
+
+  // 1. Continuous WatchPosition for High-Accuracy GPS
   useEffect(() => {
     if (!('geolocation' in navigator)) {
-      setLocationWarning('Location access denied. SOS will send default map coordinates.')
-      setShowLocationToast(true)
+      setLocationError('Geolocation not supported by browser.')
+      setUserLocationName('Koramangala, Bengaluru')
       return
     }
 
     const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
+      async (pos) => {
         const { latitude: lat, longitude: lng } = pos.coords
         setUserLocation({ lat, lng })
-        setLocationWarning(null)
-        setShowLocationToast(false)
+        setLocationError(null)
+
+        // Reverse-geocode to get landmark name
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+          if (res.ok) {
+            const data = await res.json()
+            const name = data.address?.neighbourhood || data.address?.suburb || data.address?.city_district || data.address?.city || 'Current Location'
+            const city = data.address?.city || data.address?.state || 'Bengaluru'
+            setUserLocationName(`${name}, ${city}`)
+          }
+        } catch (e) {
+          setUserLocationName('Koramangala, Bengaluru')
+        }
       },
       (err) => {
-        console.warn('Geolocation access error:', err.message)
-        setLocationWarning('Location access denied. SOS will send default map coordinates.')
-        setShowLocationToast(true)
-        setTimeout(() => setShowLocationToast(false), 6000)
+        console.warn('GPS location access error:', err.message)
+        setLocationError(err.message)
+        setUserLocationName('Koramangala, Bengaluru')
       },
       {
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 0,
+        maximumAge: 5000,
       }
     )
 
@@ -51,60 +121,208 @@ export default function App() {
     }
   }, [])
 
+  // Sync SOS config from localStorage on change
   useEffect(() => {
-    const root = document.documentElement
-    if (theme === 'dark') {
-      root.classList.add('dark')
-    } else {
-      root.classList.remove('dark')
-    }
-    localStorage.setItem('surakshit_theme', theme)
-  }, [theme])
+    try {
+      const saved = localStorage.getItem(SOS_STORAGE_KEY)
+      if (saved) setSosConfig({ ...DEFAULT_SOS_CONFIG, ...JSON.parse(saved) })
+    } catch (e) {}
+  }, [activeTab])
 
-  const toggleTheme = () => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
+  // 2. Dispatch Live GPS Emergency SOS
+  const handleTriggerSOS = async () => {
+    if (sosStatus === 'sending') return
+    setSosStatus('sending')
+
+    const lat = userLocation?.lat ?? 12.9352
+    const lng = userLocation?.lng ?? 77.6245
+    const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    const distressMessage = `🚨 *SURAKSHIT PATH AI - EMERGENCY SOS*\nI need immediate assistance!\n\n📍 Live GPS Location: https://www.google.com/maps?q=${lat},${lng}\n\n🕒 Time: ${timeString}`
+
+    let cleanPhone = (sosConfig.phone || '').replace(/[\s\-\(\)]/g, '')
+    const digitsOnly = cleanPhone.replace(/\+/g, '')
+
+    const directUrl = `https://api.whatsapp.com/send?phone=${digitsOnly}&text=${encodeURIComponent(distressMessage)}`
+
+    if (sosConfig.dispatchMode === 'direct') {
+      window.open(directUrl, '_blank')
+      showToast(`Dispatched WhatsApp SOS to ${sosConfig.contactName} (${sosConfig.phone})`, directUrl)
+    } else {
+      const apiKey = sosConfig.apiKey || ''
+      try {
+        const botUrl = `https://api.callmebot.com/whatsapp.php?phone=${digitsOnly}&text=${encodeURIComponent(distressMessage)}&apikey=${encodeURIComponent(apiKey)}`
+        fetch(botUrl, { mode: 'no-cors' }).catch((e) => console.log('Bot request sent:', e))
+      } catch (err) {
+        console.log('Bot request error:', err)
+      }
+      showToast(`Dispatched silent CallMeBot SOS to ${sosConfig.contactName} (${sosConfig.phone})`, directUrl)
+    }
+
+    setRecentActivity((prev) => [
+      { text: `SOS Alert dispatched to ${sosConfig.contactName}`, time: 'Just now' },
+      ...prev.slice(0, 4),
+    ])
+
+    setTimeout(() => setSosStatus('idle'), 3000)
   }
 
-  const scrollToWorkspace = (e) => {
-    if (e?.preventDefault) e.preventDefault()
-    document.getElementById('workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  // 3. Share Live GPS Tracking Link
+  const handleShareLiveTracking = () => {
+    const lat = userLocation?.lat ?? 12.9352
+    const lng = userLocation?.lng ?? 77.6245
+    const trackingUrl = `https://www.google.com/maps?q=${lat},${lng}`
+    
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(trackingUrl)
+    }
+
+    showToast('Live GPS tracking link copied to clipboard!', trackingUrl)
+    setRecentActivity((prev) => [
+      { text: 'Live GPS link shared', time: 'Just now' },
+      ...prev.slice(0, 4),
+    ])
+  }
+
+  // 4. Navigate to Route with Search
+  const handleNavigateToRoute = (query = '') => {
+    if (query) {
+      setRoutesData((prev) => ({ ...prev, destName: query }))
+    }
+    setAutoExpandRouteSearch(true)
+    setActiveTab('route')
+  }
+
+  // 5. Submit Incident Report
+  const handleSubmitReport = (report) => {
+    setCommunityReports((prev) => [report, ...prev])
+    showToast(`Report submitted: ${report.title}`)
+    setRecentActivity((prev) => [
+      { text: `Reported hazard: ${report.title}`, time: 'Just now' },
+      ...prev.slice(0, 4),
+    ])
   }
 
   return (
-    <KineticGrid 
-      themeMode={theme} 
-      className="h-screen w-full font-sans selection:bg-[#1D9BF0] selection:text-white relative overflow-hidden"
-    >
-      {/* Global SOS Emergency Button with Live Location */}
-      <SOSButton theme={theme} userLocation={userLocation} />
+    <div className="w-full min-h-screen bg-slate-950 flex items-center justify-center p-0 md:p-4 select-none">
+      
+      {/* ── Sleek Mobile App Shell Container (max-w-[430px], h-[100dvh]) ────── */}
+      <div className="max-w-[430px] w-full mx-auto h-[100dvh] bg-[#F6F7FB] relative overflow-hidden flex flex-col shadow-2xl font-sans text-slate-900">
+        
+        {/* ── Global Floating Toast Notification ────────────────────────────── */}
+        {toastMessage && (
+          <div className="absolute top-4 left-4 right-4 z-[999] bg-slate-900/95 text-white backdrop-blur-md rounded-2xl p-3.5 shadow-2xl border border-slate-700/60 animate-in fade-in slide-in-from-top-3 duration-200">
+            <div className="flex items-start justify-between gap-2.5">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="text-xs font-medium leading-snug">{toastMessage}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setToastMessage(null)}
+                className="text-slate-400 hover:text-white p-0.5 cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
-      {/* Permission Warning Toast */}
-      {showLocationToast && locationWarning && (
-        <div className="fixed bottom-5 left-5 z-50 bg-amber-500/95 text-black font-mono text-xs px-4 py-2.5 rounded-lg shadow-2xl border border-amber-300 flex items-center gap-2 backdrop-blur-md animate-in fade-in slide-in-from-bottom-2">
-          <span>⚠️</span>
-          <span>{locationWarning}</span>
-          <button 
-            onClick={() => setShowLocationToast(false)} 
-            className="ml-2 font-bold hover:opacity-75 cursor-pointer text-black"
-          >
-            ✕
-          </button>
-        </div>
-      )}
+            {toastActionUrl && (
+              <div className="mt-2 pl-6">
+                <a
+                  href={toastActionUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-400 hover:underline"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>Open in WhatsApp</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            )}
+          </div>
+        )}
 
-      {/* Main Snap / Scroll Layout */}
-      <main className="h-screen w-full overflow-y-auto overflow-x-hidden snap-y snap-mandatory scroll-smooth relative z-10">
-        <HeroSection 
-          onExploreClick={scrollToWorkspace} 
-          theme={theme} 
-          onToggleTheme={toggleTheme} 
+        {/* ── Active Tab Viewport Content ──────────────────────────────────── */}
+        <main className="flex-1 w-full h-full relative overflow-hidden flex flex-col">
+          {activeTab === 'home' && (
+            <HomeTab
+              userLocation={userLocation}
+              userLocationName={userLocationName}
+              onNavigateToRoute={handleNavigateToRoute}
+              onTriggerSOS={handleTriggerSOS}
+              onShareLiveTracking={handleShareLiveTracking}
+              onOpenReportModal={() => setIsReportModalOpen(true)}
+              onOpenAiChat={() => setIsAiModalOpen(true)}
+              routesData={routesData}
+              recentActivity={recentActivity}
+            />
+          )}
+
+          {activeTab === 'route' && (
+            <RouteTab
+              activeRoute={activeRoute}
+              setActiveRoute={setActiveRoute}
+              theme={theme}
+              routesData={routesData}
+              setRoutesData={setRoutesData}
+              userLocation={userLocation}
+              onOpenAiChat={() => setIsAiModalOpen(true)}
+              autoExpandSearch={autoExpandRouteSearch}
+            />
+          )}
+
+          {activeTab === 'contacts' && (
+            <ContactsTab
+              userLocation={userLocation}
+              onShowToast={showToast}
+            />
+          )}
+
+          {activeTab === 'community' && (
+            <CommunityTab
+              reports={communityReports}
+              onOpenReportModal={() => setIsReportModalOpen(true)}
+              onShowToast={showToast}
+            />
+          )}
+
+          {activeTab === 'profile' && (
+            <ProfileTab
+              onShowToast={showToast}
+              onOpenReportModal={() => setIsReportModalOpen(true)}
+              onNavigateToContacts={() => setActiveTab('contacts')}
+              onNavigateToCommunity={() => setActiveTab('community')}
+            />
+          )}
+        </main>
+
+        {/* ── Persistent Floating Bottom Navigation Bar (Across all 5 tabs) ── */}
+        <BottomNav
+          activeTab={activeTab}
+          setActiveTab={(tab) => {
+            if (tab !== 'route') setAutoExpandRouteSearch(false)
+            setActiveTab(tab)
+          }}
         />
-        <WorkspaceSection 
-          ref={workspaceRef} 
-          theme={theme} 
-          userLocation={userLocation}
+
+        {/* ── Gemini AI Safety Advisor Chat Modal / Sheet ─────────────────── */}
+        <AiChatModal
+          isOpen={isAiModalOpen}
+          onClose={() => setIsAiModalOpen(false)}
+          activeRoute={activeRoute}
+          theme={theme}
+          routesData={routesData}
         />
-      </main>
-    </KineticGrid>
+
+        {/* ── Community Incident Report Modal ──────────────────────────────── */}
+        <ReportModal
+          isOpen={isReportModalOpen}
+          onClose={() => setIsReportModalOpen(false)}
+          onSubmitReport={handleSubmitReport}
+          userLocationName={userLocationName}
+        />
+
+      </div>
+    </div>
   )
 }
