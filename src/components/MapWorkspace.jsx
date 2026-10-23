@@ -1,8 +1,8 @@
 import 'leaflet/dist/leaflet.css'
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { MapContainer, TileLayer, Polyline, Marker, Circle, useMap, Tooltip } from 'react-leaflet'
+import { MapContainer, TileLayer, Polyline, Marker, useMap, Tooltip } from 'react-leaflet'
 import L from 'leaflet'
-import { MapPin, Navigation, Crosshair, Loader2, ShieldCheck, ChevronRight, Layers, Radio, AlertTriangle, Fuel, Shield, Bus, HeartPulse, Store } from 'lucide-react'
+import { MapPin, Navigation, Crosshair, Loader2, ShieldCheck, ChevronRight, Layers, AlertTriangle, Fuel, Shield, Bus, HeartPulse, Store } from 'lucide-react'
 
 // ─── Custom HTML Markers (Zero-Image Bug in Vite) ───────────────────────────────
 
@@ -63,32 +63,6 @@ const constructionHazardIcon = L.divIcon({
   `,
   iconSize: [130, 22],
   iconAnchor: [65, 11],
-})
-
-// Cell Tower Node Marker
-const cellTowerIcon = (label) => L.divIcon({
-  className: 'leaflet-div-icon',
-  html: `
-    <div class="bg-purple-700 text-white border border-purple-300 text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap flex items-center gap-1 font-mono">
-      <span>📡</span>
-      <span>${label}</span>
-    </div>
-  `,
-  iconSize: [120, 22],
-  iconAnchor: [60, 11],
-})
-
-// Dead Spot / Low Signal Marker
-const deadSpotIcon = L.divIcon({
-  className: 'leaflet-div-icon',
-  html: `
-    <div class="bg-red-600 text-white border border-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-lg whitespace-nowrap flex items-center gap-1 font-mono animate-pulse">
-      <span>⚠️</span>
-      <span>Dead Spot (1 Bar)</span>
-    </div>
-  `,
-  iconSize: [125, 22],
-  iconAnchor: [62, 11],
 })
 
 // ─── Map Camera Controller ────────────────────────────────────────────────────
@@ -218,61 +192,6 @@ function generateSpatialEnvironment(coords, routeType = 'highway') {
   return { segments, hazards }
 }
 
-// Procedural Cell Tower & Dead Spot Generator
-function generateCellTowers(coords1, coords2, coords3) {
-  const len1 = coords1.length
-  const len2 = coords2.length
-  const len3 = coords3.length
-
-  const towers = [
-    {
-      pos: coords1[Math.floor(len1 * 0.22)] || coords1[0],
-      label: 'Jio 5G Node #104',
-      operator: 'Jio 5G',
-      radius: 1100,
-    },
-    {
-      pos: coords1[Math.floor(len1 * 0.52)] || coords1[0],
-      label: 'Airtel 5G Site #08',
-      operator: 'Airtel 5G',
-      radius: 1250,
-    },
-    {
-      pos: coords1[Math.floor(len1 * 0.82)] || coords1[0],
-      label: 'Vi 4G Hub #33',
-      operator: '4G LTE',
-      radius: 1000,
-    },
-    {
-      pos: coords2[Math.floor(len2 * 0.26)] || coords2[0],
-      label: 'Telecom Tower #22',
-      operator: '4G VoLTE',
-      radius: 950,
-    },
-    {
-      pos: coords2[Math.floor(len2 * 0.78)] || coords2[0],
-      label: 'BSNL / Airtel Cell #41',
-      operator: '5G / 4G',
-      radius: 1050,
-    },
-  ]
-
-  const deadSpots = [
-    {
-      pos: coords2[Math.floor(len2 * 0.48)] || coords2[0],
-      label: 'Weak Signal Zone (Forest Dip - 1 Bar)',
-      radius: 750,
-    },
-    {
-      pos: coords3[Math.floor(len3 * 0.55)] || coords3[0],
-      label: 'Low Network Coverage (Rough Backroad)',
-      radius: 850,
-    },
-  ]
-
-  return { towers, deadSpots }
-}
-
 export default function MapWorkspace({ activeRoute, setActiveRoute, theme, routesData, setRoutesData }) {
   // Input fields & coordinates
   const [startQuery, setStartQuery] = useState(routesData?.startName || 'Koramangala 4th Block')
@@ -287,14 +206,10 @@ export default function MapWorkspace({ activeRoute, setActiveRoute, theme, route
   const [isSearchingDest, setIsSearchingDest] = useState(false)
   const [showDestDropdown, setShowDestDropdown] = useState(false)
 
-  // Radar Circle Visibility Toggle (Default: true)
-  const [showNetworkRadar, setShowNetworkRadar] = useState(true)
-
   // 3 Generated Routes data state
   const [routeSegments, setRouteSegments] = useState({ '1': [], '2': [], '3': [] })
   const [routeHazards, setRouteHazards] = useState({ '1': [], '2': [], '3': [] })
   const [routePois, setRoutePois] = useState({ '1': [], '2': [], '3': [] })
-  const [cellNetwork, setCellNetwork] = useState({ towers: [], deadSpots: [] })
 
   const [mapBounds, setMapBounds] = useState([DEFAULT_START, DEFAULT_END])
   const [isLoadingRoute, setIsLoadingRoute] = useState(false)
@@ -583,10 +498,6 @@ export default function MapWorkspace({ activeRoute, setActiveRoute, theme, route
         '3': env3.hazards,
       })
 
-      // ── Cell Tower Network Coverage Radar Nodes ──
-      const cellData = generateCellTowers(coords1, coords2, coords3)
-      setCellNetwork(cellData)
-
       // ── Hybrid Overpass + Deterministic Safe Places ──
       const minLat = Math.min(startLat, endLat) - 0.025
       const maxLat = Math.max(startLat, endLat) + 0.025
@@ -776,64 +687,6 @@ export default function MapWorkspace({ activeRoute, setActiveRoute, theme, route
           maxZoom={19}
         />
 
-        {/* ── Render Cell Tower Network Radius Circles (When Toggled ON) ────────── */}
-        {showNetworkRadar && (
-          <>
-            {/* High Signal 5G/4G Circles (Purple, 800m - 1250m) */}
-            {cellNetwork.towers.map((tower, idx) => (
-              <Circle
-                key={`tower-circle-${idx}`}
-                center={tower.pos}
-                radius={tower.radius}
-                pathOptions={{
-                  color: '#8b5cf6',
-                  fillColor: '#8b5cf6',
-                  fillOpacity: 0.12,
-                  weight: 1.5,
-                }}
-              />
-            ))}
-
-            {/* Low / Dead Spot Circles (Red Dashed, 750m - 850m) */}
-            {cellNetwork.deadSpots.map((dead, idx) => (
-              <Circle
-                key={`dead-circle-${idx}`}
-                center={dead.pos}
-                radius={dead.radius}
-                pathOptions={{
-                  color: '#ef4444',
-                  fillColor: '#ef4444',
-                  fillOpacity: 0.16,
-                  dashArray: '4, 4',
-                  weight: 1.5,
-                }}
-              />
-            ))}
-
-            {/* Tower Markers */}
-            {cellNetwork.towers.map((tower, idx) => (
-              <Marker key={`tower-marker-${idx}`} position={tower.pos} icon={cellTowerIcon(tower.operator)}>
-                <Tooltip>
-                  <span className="font-mono text-xs font-bold text-neutral-800">
-                    {tower.label} (Radius: {tower.radius}m)
-                  </span>
-                </Tooltip>
-              </Marker>
-            ))}
-
-            {/* Dead Spot Markers */}
-            {cellNetwork.deadSpots.map((dead, idx) => (
-              <Marker key={`dead-marker-${idx}`} position={dead.pos} icon={deadSpotIcon}>
-                <Tooltip>
-                  <span className="font-mono text-xs font-bold text-red-700">
-                    {dead.label}
-                  </span>
-                </Tooltip>
-              </Marker>
-            ))}
-          </>
-        )}
-
         {/* ── Render All 3 Multi-Segment Styled Routes ────────────────────────── */}
         {['3', '2', '1'].map((routeId) => {
           const isCurrentActive = activeRoute === routeId
@@ -1010,22 +863,6 @@ export default function MapWorkspace({ activeRoute, setActiveRoute, theme, route
         </button>
       </div>
 
-      {/* ── Top-Right Cell Tower Network Radar Toggle Button (z-[1000]) ─────────── */}
-      <div className="absolute top-4 right-4 z-[1000]">
-        <button
-          onClick={() => setShowNetworkRadar(!showNetworkRadar)}
-          className={`px-3 py-2 rounded-xl text-xs font-mono font-bold uppercase tracking-wider shadow-xl backdrop-blur-md border transition-all cursor-pointer flex items-center gap-2 ${
-            showNetworkRadar
-              ? 'bg-purple-600/95 hover:bg-purple-700 text-white border-purple-400/50 ring-2 ring-purple-500/30'
-              : 'bg-white/95 dark:bg-neutral-900/95 text-neutral-700 dark:text-neutral-300 border-neutral-200 dark:border-neutral-800 hover:text-black dark:hover:text-white'
-          }`}
-          title="Toggle Cell Tower Coverage Radii & Dead Spots"
-        >
-          <Radio className={`w-3.5 h-3.5 ${showNetworkRadar ? 'animate-pulse' : ''}`} />
-          <span>Radar: {showNetworkRadar ? 'ON' : 'OFF'}</span>
-        </button>
-      </div>
-
       {/* ── Map Legend Overlay (Bottom-Right, stacked above route cards, z-[1000]) ─ */}
       <div className="absolute bottom-28 right-4 z-[1000] bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md border border-neutral-200 dark:border-neutral-800 shadow-xl rounded-xl p-3 text-black dark:text-white max-w-[220px] hidden md:block">
         <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 mb-2 border-b border-neutral-100 dark:border-neutral-800 pb-1">
@@ -1049,14 +886,6 @@ export default function MapWorkspace({ activeRoute, setActiveRoute, theme, route
           <div className="flex items-center gap-2">
             <span className="w-4 h-1 border-t-2 border-dashed border-[#ea580c] inline-block flex-shrink-0"></span>
             <span className="text-neutral-700 dark:text-neutral-300">Under Construction</span>
-          </div>
-          <div className="flex items-center gap-2 pt-1 border-t border-neutral-100 dark:border-neutral-800">
-            <span className="w-3 h-3 rounded-full bg-purple-500/30 border border-purple-500 inline-block flex-shrink-0"></span>
-            <span className="text-neutral-700 dark:text-neutral-300">5G/4G Cell Radius</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 rounded-full bg-red-500/30 border border-dashed border-red-500 inline-block flex-shrink-0"></span>
-            <span className="text-neutral-700 dark:text-neutral-300">Weak/Dead Spot</span>
           </div>
         </div>
 
