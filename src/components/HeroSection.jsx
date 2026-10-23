@@ -33,7 +33,7 @@ export default function HeroSection({ onExploreClick, theme, onToggleTheme }) {
           {/* Theme Toggle Button */}
           <button
             onClick={onToggleTheme}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border bg-card hover:bg-accent text-foreground text-xs font-mono transition-colors cursor-pointer mr-44"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border bg-card hover:bg-accent text-foreground text-xs font-mono transition-colors cursor-pointer mr-60 sm:mr-64"
             aria-label="Toggle theme mode"
           >
             {isDark ? (

@@ -86,3 +86,16 @@ dialog::backdrop {
   background-color: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
 }
+
+/* Leaflet map container & custom div icons */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  z-index: 0;
+  font-family: inherit;
+}
+
+.leaflet-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
