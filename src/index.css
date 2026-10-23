@@ -1,0 +1,88 @@
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  * {
+    border-color: var(--border);
+  }
+
+  .theme {
+    --font-heading: var(--font-sans);
+    --font-sans: 'Geist Variable', sans-serif;
+  }
+
+  /* Twitter Light Theme */
+  :root {
+    --background: #ffffff;
+    --foreground: #0f1419;
+    --card: #f7f9f9;
+    --card-foreground: #0f1419;
+    --popover: #ffffff;
+    --popover-foreground: #0f1419;
+    --primary: #1d9bf0;
+    --primary-foreground: #ffffff;
+    --secondary: #0f1419;
+    --secondary-foreground: #ffffff;
+    --muted: #eff3f4;
+    --muted-foreground: #536471;
+    --accent: #e1e8ed;
+    --accent-foreground: #1d9bf0;
+    --destructive: #f4212e;
+    --destructive-foreground: #ffffff;
+    --border: #cfd9de;
+    --input: #cfd9de;
+    --ring: #1d9bf0;
+    --radius: 0.5rem;
+  }
+
+  /* Twitter Dark (Lights Out) Theme */
+  .dark {
+    --background: #000000;
+    --foreground: #f7f9f9;
+    --card: #16181c;
+    --card-foreground: #f7f9f9;
+    --popover: #16181c;
+    --popover-foreground: #f7f9f9;
+    --primary: #1d9bf0;
+    --primary-foreground: #ffffff;
+    --secondary: #ffffff;
+    --secondary-foreground: #0f1419;
+    --muted: #22303c;
+    --muted-foreground: #71767b;
+    --accent: #15202b;
+    --accent-foreground: #1d9bf0;
+    --destructive: #f4212e;
+    --destructive-foreground: #ffffff;
+    --border: #2f3336;
+    --input: #2f3336;
+    --ring: #1d9bf0;
+    --radius: 0.5rem;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans, system-ui, sans-serif);
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  html {
+    font-family: var(--font-sans, system-ui, sans-serif);
+  }
+}
+
+/* Dialog backdrop */
+dialog::backdrop {
+  background-color: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+}
