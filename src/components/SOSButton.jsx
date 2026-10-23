@@ -11,7 +11,7 @@ const DEFAULT_CONFIG = {
   dispatchMode: 'direct', // 'direct' (no key needed) | 'bot' (silent automated)
 }
 
-export default function SOSButton() {
+export default function SOSButton({ theme, userLocation }) {
   const [config, setConfig] = useState(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -73,7 +73,7 @@ export default function SOSButton() {
     setTestStatus('Pinging CallMeBot API...')
 
     try {
-      const testMsg = 'Test alert from Surakshit AI'
+      const testMsg = 'Test alert from Surakshit Path AI'
       const url = `https://api.callmebot.com/whatsapp.php?phone=${cleanPhone}&text=${encodeURIComponent(testMsg)}&apikey=${encodeURIComponent(formData.apiKey)}`
       
       const res = await fetch(url, { mode: 'no-cors' })
@@ -85,47 +85,17 @@ export default function SOSButton() {
     }
   }
 
-  // ── Dispatch SOS ────────────────────────────────────────────────────────────
+  // ── Dispatch SOS (Immediate real-time GPS dispatch, zero timeout lag) ────────
   const handleDispatchSOS = async () => {
     if (status === 'sending') return
     setStatus('sending')
 
-    // 1. Get Live GPS coordinates with 2s fallback timeout
-    let lat = 12.9352
-    let lng = 77.6245
-
-    try {
-      const position = await new Promise((resolve, reject) => {
-        if (!('geolocation' in navigator)) {
-          return reject(new Error('Geolocation not supported'))
-        }
-        const timer = setTimeout(() => {
-          reject(new Error('Timeout retrieving GPS'))
-        }, 2000)
-
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            clearTimeout(timer)
-            resolve(pos)
-          },
-          (err) => {
-            clearTimeout(timer)
-            reject(err)
-          },
-          { timeout: 2000, enableHighAccuracy: true }
-        )
-      })
-
-      if (position?.coords) {
-        lat = position.coords.latitude
-        lng = position.coords.longitude
-      }
-    } catch (err) {
-      console.log('Using default GPS fallback coordinates:', err.message)
-    }
+    // Immediately resolve real user GPS or map fallback coordinates
+    const lat = userLocation?.lat ?? 12.9565
+    const lng = userLocation?.lng ?? 77.6337
 
     const timeString = new Date().toLocaleTimeString()
-    const distressMessage = `🚨 *SURAKSHIT AI - EMERGENCY SOS*\nI need immediate assistance!\n📍 Live GPS Location: https://www.google.com/maps?q=${lat},${lng}\n🕒 Time: ${timeString}`
+    const distressMessage = `🚨 *SURAKSHIT PATH AI - EMERGENCY SOS*\nI need immediate assistance!\n\n📍 Live GPS Location: https://www.google.com/maps?q=${lat},${lng}\n\n🕒 Time: ${timeString}`
 
     // Clean phone number (strip spaces, symbols, keep digits)
     let cleanPhone = (config.phone || '').replace(/[\s\-\(\)]/g, '')
@@ -168,13 +138,13 @@ export default function SOSButton() {
       <button
         onClick={handleDispatchSOS}
         disabled={status === 'sending'}
-        className="bg-black hover:bg-neutral-800 text-white font-mono font-bold px-4 py-2.5 rounded-full shadow-xl flex items-center gap-2 transition-all active:scale-95 cursor-pointer text-xs uppercase tracking-wider"
+        className="bg-red-600 hover:bg-red-700 text-white text-base md:text-lg font-bold px-6 py-3 rounded-full shadow-[0_0_20px_rgba(220,38,38,0.6)] flex items-center gap-3 transition-all transform hover:scale-105 active:scale-95 font-mono tracking-wider cursor-pointer"
       >
         {status === 'idle' && (
           <>
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600" />
+            <span className="relative flex h-3.5 w-3.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-85" />
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-white shadow-sm" />
             </span>
             <span>[!] EMERGENCY SOS</span>
           </>
@@ -182,15 +152,15 @@ export default function SOSButton() {
 
         {status === 'sending' && (
           <>
-            <Loader2 className="w-4 h-4 animate-spin text-white" />
+            <Loader2 className="w-5 h-5 animate-spin text-white" />
             <span>DISPATCHING SOS...</span>
           </>
         )}
 
         {status === 'sent' && (
           <>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            <span className="text-emerald-300">✓ SOS DISPATCHED!</span>
+            <CheckCircle2 className="w-5 h-5 text-white" />
+            <span className="text-white">✓ SOS DISPATCHED!</span>
           </>
         )}
       </button>
@@ -202,11 +172,11 @@ export default function SOSButton() {
           setTestStatus('')
           setIsPopoverOpen((prev) => !prev)
         }}
-        className="bg-white border border-black text-black hover:bg-neutral-100 p-2.5 rounded-full shadow-md cursor-pointer transition-transform active:scale-90 flex items-center justify-center"
+        className="bg-white dark:bg-neutral-900 border-2 border-red-600 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-neutral-800 p-3.5 rounded-full shadow-lg cursor-pointer transition-transform transform hover:scale-105 active:scale-90 flex items-center justify-center"
         aria-label="Edit SOS Emergency Contact"
         title="Configure WhatsApp Emergency Contact"
       >
-        <Pencil className="w-4 h-4 text-black" />
+        <Pencil className="w-5 h-5 text-red-600 dark:text-red-400" />
       </button>
 
       {/* ── Pencil Edit Popover (Contact Configuration) ─────────────────────── */}
@@ -217,17 +187,24 @@ export default function SOSButton() {
         >
           <div className="flex items-center justify-between pb-3 border-b border-neutral-200 mb-4">
             <div className="flex items-center gap-2">
-              <ShieldAlert className="w-4 h-4 text-black" />
+              <ShieldAlert className="w-4 h-4 text-red-600" />
               <h3 className="font-mono text-xs font-bold uppercase tracking-wider text-black">
                 SOS WhatsApp Setup
               </h3>
             </div>
-            <button
-              onClick={() => setIsPopoverOpen(false)}
-              className="text-neutral-500 hover:text-black p-1"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold flex items-center gap-1 ${
+                userLocation ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-800 border border-amber-300'
+              }`}>
+                <span>{userLocation ? '● GPS Live' : '● Map Fallback'}</span>
+              </span>
+              <button
+                onClick={() => setIsPopoverOpen(false)}
+                className="text-neutral-500 hover:text-black p-1 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           <form onSubmit={handleSaveContact} className="space-y-4">
