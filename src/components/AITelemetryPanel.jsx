@@ -65,8 +65,10 @@ export default function AITelemetryPanel({ activeRoute, theme, routesData }) {
   useEffect(() => {
     if (!routesData?.routes?.['A'] && !routesData?.routes?.['B']) return
 
-    const startLoc = routesData?.startName || 'Koramangala 4th Block'
-    const destLoc = routesData?.destName || 'Indiranagar 100ft Road'
+    const startLoc = routesData?.startName
+    const destLoc = routesData?.destName
+    if (!startLoc || !destLoc) return
+
     const routeAKey = `${routeA.distanceKm}-${routeA.safetyScore}`
     const routeBKey = `${routeB.distanceKm}-${routeB.safetyScore}`
     const combinedKey = `${startLoc}->${destLoc}:${routeAKey}|${routeBKey}`
@@ -303,7 +305,7 @@ ROUTE B (Alternative Path):
             <span>&lt; AI TELEMETRY &amp; SCORING &gt;</span>
           </span>
           <span className="text-primary font-bold">
-            {currentRoute.distanceKm} km • {currentRoute.durationMin} min
+            {routesData?.startName && routesData?.destName && currentRoute?.distanceKm ? `${currentRoute.distanceKm} km • ${currentRoute.durationMin} min` : 'Awaiting Route'}
           </span>
         </div>
 
@@ -321,7 +323,7 @@ ROUTE B (Alternative Path):
             )}
           </div>
           <p className="text-xs text-foreground/90 leading-relaxed font-sans">
-            {evaluationSummary || currentRoute.evaluationText}
+            {evaluationSummary || (routesData?.startName && routesData?.destName ? currentRoute?.evaluationText : 'Enter a starting point and destination in the map search panel to begin AI safety evaluation.')}
           </p>
         </div>
 
@@ -354,6 +356,14 @@ ROUTE B (Alternative Path):
         ref={chatScrollRef} 
         className="flex-1 overflow-y-auto my-4 p-4 bg-neutral-50/70 dark:bg-neutral-900/50 rounded-2xl border border-neutral-200 dark:border-neutral-800 space-y-3"
       >
+        {chatHistory.length === 0 && !isAnalyzing && (
+          <div className="flex flex-col items-center justify-center h-full text-center p-6 text-neutral-400 dark:text-neutral-500 font-sans space-y-2 select-none">
+            <Sparkles className="w-6 h-6 text-primary/60 mb-1" />
+            <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Ready for route safety analysis</p>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">Select your origin and destination in the map search panel to compare route lighting, telecom signals, and safe havens.</p>
+          </div>
+        )}
+
         {chatHistory.map((msg, idx) => (
           <div
             key={idx}

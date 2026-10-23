@@ -2,7 +2,7 @@ import 'leaflet/dist/leaflet.css'
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { MapContainer, TileLayer, Polyline, Marker, useMap, Tooltip } from 'react-leaflet'
 import L from 'leaflet'
-import { MapPin, Navigation, Crosshair, Loader2, ShieldCheck, Layers, Fuel, Shield, Bus, HeartPulse, Store, AlertTriangle } from 'lucide-react'
+import { MapPin, Navigation, Crosshair, Loader2, ShieldCheck, Layers, Fuel, Shield, Bus, HeartPulse, Store, AlertTriangle, Menu, Car, Bike, Footprints, Compass, ArrowUpDown, Plus, Clock, ChevronDown, X, CornerUpRight } from 'lucide-react'
 
 // ─── Minimalist Icon-Based Map Pins (With Downward Pointer Triangle) ───────────
 
@@ -267,6 +267,9 @@ const INITIAL_ROUTES = [
     name: 'Route A (Safest Route)',
     type: 'Primary Arterial & Lit Highway Corridor',
     coords: INITIAL_COORDS_A,
+    geometry: {
+      coordinates: INITIAL_COORDS_A.map(([lat, lng]) => [lng, lat]),
+    },
     segments: [
       { type: 'HIGHWAY_LIT', coords: INITIAL_COORDS_A.slice(0, 3) },
       { type: 'HIGHWAY_LIT', coords: INITIAL_COORDS_A.slice(2, 5) },
@@ -296,6 +299,9 @@ const INITIAL_ROUTES = [
     name: 'Route B (Alternative Route)',
     type: 'Secondary Road / Urban Bypass',
     coords: INITIAL_COORDS_B,
+    geometry: {
+      coordinates: INITIAL_COORDS_B.map(([lat, lng]) => [lng, lat]),
+    },
     segments: [
       { type: 'FOREST_ISOLATED', coords: INITIAL_COORDS_B.slice(0, 3) },
       { type: 'HIGHWAY_LIT', coords: INITIAL_COORDS_B.slice(2, 5) },
@@ -321,25 +327,28 @@ const INITIAL_ROUTES = [
 ]
 
 export default function MapWorkspace({ activeRoute, setActiveRoute, theme, routesData, setRoutesData, userLocation }) {
-  // Input fields & coordinates
-  const [startQuery, setStartQuery] = useState(routesData?.startName || 'Koramangala 4th Block')
-  const [startCoords, setStartCoords] = useState(DEFAULT_START)
+  // Input fields & coordinates (starts empty at the beginning of the page)
+  const [startQuery, setStartQuery] = useState(routesData?.startName || '')
+  const [startCoords, setStartCoords] = useState(null)
   const [startSuggestions, setStartSuggestions] = useState([])
   const [isSearchingStart, setIsSearchingStart] = useState(false)
   const [showStartDropdown, setShowStartDropdown] = useState(false)
 
-  const [destQuery, setDestQuery] = useState(routesData?.destName || 'Indiranagar 100ft Road')
-  const [destCoords, setDestCoords] = useState(DEFAULT_END)
+  const [destQuery, setDestQuery] = useState(routesData?.destName || '')
+  const [destCoords, setDestCoords] = useState(null)
   const [destSuggestions, setDestSuggestions] = useState([])
   const [isSearchingDest, setIsSearchingDest] = useState(false)
   const [showDestDropdown, setShowDestDropdown] = useState(false)
 
-  // Exactly 2 Routes State (Route A and Route B with guaranteed initial coordinates)
-  const [routes, setRoutes] = useState(INITIAL_ROUTES)
+  // Exactly 2 Routes State (starts empty until locations are selected)
+  const [routes, setRoutes] = useState([])
 
-  const [mapBounds, setMapBounds] = useState([DEFAULT_START, DEFAULT_END])
+  const [mapBounds, setMapBounds] = useState(null)
   const [isLoadingRoute, setIsLoadingRoute] = useState(false)
   const [isLocating, setIsLocating] = useState(false)
+  const [selectedTravelMode, setSelectedTravelMode] = useState('best')
+  const [showTimeDropdown, setShowTimeDropdown] = useState(false)
+  const [departOption, setDepartOption] = useState('Leave now')
 
   const startDebounceTimer = useRef(null)
   const destDebounceTimer = useRef(null)
@@ -426,6 +435,9 @@ export default function MapWorkspace({ activeRoute, setActiveRoute, theme, route
     setStartCoords([item.lat, item.lng])
     setShowStartDropdown(false)
     setStartSuggestions([])
+    if (destCoords && destCoords.length === 2) {
+      fetchRoutes([item.lat, item.lng], destCoords, item.label, destQuery)
+    }
   }
 
   const handleSelectDestSuggestion = (item) => {
@@ -433,6 +445,9 @@ export default function MapWorkspace({ activeRoute, setActiveRoute, theme, route
     setDestCoords([item.lat, item.lng])
     setShowDestDropdown(false)
     setDestSuggestions([])
+    if (startCoords && startCoords.length === 2) {
+      fetchRoutes(startCoords, [item.lat, item.lng], startQuery, item.label)
+    }
   }
 
   const handleUseCurrentLocation = async () => {
@@ -574,6 +589,7 @@ export default function MapWorkspace({ activeRoute, setActiveRoute, theme, route
 
     return {
       rawRoute: route,
+      geometry: route.geometry,
       coords,
       distKm,
       durationMin,
@@ -762,13 +778,73 @@ export default function MapWorkspace({ activeRoute, setActiveRoute, theme, route
 
   const calculateRoute = fetchRoutes
 
-  // Trigger initial calculation on mount
+  // Only calculate when both start and destination points are provided
   useEffect(() => {
-    fetchRoutes(DEFAULT_START, DEFAULT_END, 'Koramangala 4th Block', 'Indiranagar 100ft Road')
-  }, [fetchRoutes])
+    if (startCoords && destCoords && startQuery && destQuery) {
+      fetchRoutes(startCoords, destCoords, startQuery, destQuery)
+    }
+  }, [fetchRoutes, startCoords, destCoords, startQuery, destQuery])
 
-  const handleFindRouteClick = () => {
-    fetchRoutes(startCoords, destCoords, startQuery, destQuery)
+  const handleFindRouteClick = async () => {
+    if (!startQuery.trim() || !destQuery.trim()) {
+      alert('Please enter both a starting point and a destination.')
+      return
+    }
+
+    let finalStart = startCoords
+    let finalDest = destCoords
+
+    if (!finalStart) {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(startQuery)}&limit=1`)
+        if (res.ok) {
+          const d = await res.json()
+          if (d && d[0]) {
+            finalStart = [parseFloat(d[0].lat), parseFloat(d[0].lon)]
+            setStartCoords(finalStart)
+          }
+        }
+      } catch (e) {
+        // geocode fallback
+      }
+    }
+
+    if (!finalDest) {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(destQuery)}&limit=1`)
+        if (res.ok) {
+          const d = await res.json()
+          if (d && d[0]) {
+            finalDest = [parseFloat(d[0].lat), parseFloat(d[0].lon)]
+            setDestCoords(finalDest)
+          }
+        }
+      } catch (e) {
+        // geocode fallback
+      }
+    }
+
+    if (finalStart && finalDest) {
+      fetchRoutes(finalStart, finalDest, startQuery, destQuery)
+    } else {
+      alert('Please select a valid location from the suggestions dropdown.')
+    }
+  }
+
+  const handleSwapLocations = () => {
+    const prevStartQuery = startQuery
+    const prevStartCoords = startCoords
+    const prevDestQuery = destQuery
+    const prevDestCoords = destCoords
+
+    setStartQuery(prevDestQuery)
+    setStartCoords(prevDestCoords)
+    setDestQuery(prevStartQuery)
+    setDestCoords(prevStartCoords)
+
+    if (prevStartCoords && prevDestCoords) {
+      fetchRoutes(prevDestCoords, prevStartCoords, prevDestQuery, prevStartQuery)
+    }
   }
 
   // Active POIs & Hazards from routes state
@@ -795,76 +871,93 @@ export default function MapWorkspace({ activeRoute, setActiveRoute, theme, route
           maxZoom={19}
         />
 
-        {/* ── Render exactly two routes mapped over `routes` state (Route A solid, Route B dashed) ── */}
-        {routes.map((route, rIdx) => {
-          const isRouteA = route.id === 'A' || rIdx === 0
-          const isRouteB = route.id === 'B' || rIdx === 1
-          const isCurrentActive = activeRoute === route.id
+        {/* ── 1. Render Route B (Alternative) FIRST: Standard Polyline (No multi-color segments) ── */}
+        {routes[1] && (
+          <Polyline
+            key="route-b-alt-polyline"
+            positions={
+              routes[1].geometry?.coordinates
+                ? routes[1].geometry.coordinates.map((coord) => [coord[1], coord[0]])
+                : routes[1].coords
+            }
+            pathOptions={{
+              color: '#6b7280',
+              weight: 5,
+              opacity: 0.9,
+              dashArray: '12, 12',
+            }}
+            eventHandlers={{
+              click: () => setActiveRoute(routes[1].id || 'B'),
+            }}
+          >
+            <Tooltip sticky>
+              <span className="font-mono text-xs font-bold">
+                {routes[1].name || 'Route B (Alternative Route)'}
+              </span>
+            </Tooltip>
+          </Polyline>
+        )}
 
-          // Route A (Highest Score): Solid line, opacity: 1, weight: 6 (when active)
-          // Route B (Lower Score): Dashed line, opacity: 0.5, weight: 5, dashArray: "8, 8" (when inactive)
-          const polyWeight = isRouteA 
-            ? (isCurrentActive ? 6 : 5) 
-            : (isCurrentActive ? 6 : 5)
-          const polyOpacity = isRouteA 
-            ? (isCurrentActive ? 1.0 : 0.6) 
-            : (isCurrentActive ? 0.95 : 0.5)
-          const baseDash = isRouteB ? '8, 8' : undefined
-
-          const validSegments = Array.isArray(route.segments)
-            ? route.segments.filter((seg) => seg && Array.isArray(seg.coords) && seg.coords.length >= 2)
-            : []
-          const hasValidCoords = Array.isArray(route.coords) && route.coords.length >= 2
-
-          return (
-            <React.Fragment key={route.id || `route-${rIdx}`}>
-              {/* Dynamic multi-color terrain segments */}
-              {validSegments.length > 0 ? (
-                validSegments.map((seg, sIdx) => {
+        {/* ── 2. Render Route A (Primary Safest Path) SECOND: Custom multi-color segments ── */}
+        {routes[0] && (
+          <React.Fragment key="route-a-primary-group">
+            {Array.isArray(routes[0].segments) && routes[0].segments.length > 0 ? (
+              routes[0].segments
+                .filter((seg) => seg && Array.isArray(seg.coords) && seg.coords.length >= 2)
+                .map((seg, sIdx) => {
                   const styleDef = ROAD_STYLES[seg.type] || ROAD_STYLES.HIGHWAY_LIT
-                  const segDash = isRouteB ? '8, 8' : (seg.type === 'CONSTRUCTION_IMPROPER' ? '5, 10' : undefined)
+                  const segDash = seg.type === 'CONSTRUCTION_IMPROPER' ? '5, 10' : undefined
 
                   return (
                     <Polyline
-                      key={`${route.id}-seg-${sIdx}`}
+                      key={`route-a-seg-${sIdx}`}
                       positions={seg.coords}
                       color={styleDef.color}
                       dashArray={segDash}
-                      weight={polyWeight}
-                      opacity={polyOpacity}
+                      weight={6}
+                      opacity={1}
+                      pathOptions={{
+                        color: styleDef.color,
+                        weight: 6,
+                        opacity: 1,
+                        dashArray: segDash,
+                      }}
                       eventHandlers={{
-                        click: () => setActiveRoute(route.id),
+                        click: () => setActiveRoute(routes[0].id || 'A'),
                       }}
                     >
                       <Tooltip sticky>
                         <span className="font-mono text-xs font-bold">
-                          {route.name} • {styleDef.label}
+                          {routes[0].name} • {styleDef.label}
                         </span>
                       </Tooltip>
                     </Polyline>
                   )
                 })
-              ) : hasValidCoords ? (
-                <Polyline
-                  positions={route.coords}
-                  color={isRouteA ? '#2563eb' : '#09090b'}
-                  dashArray={baseDash}
-                  weight={polyWeight}
-                  opacity={polyOpacity}
-                  eventHandlers={{
-                    click: () => setActiveRoute(route.id),
-                  }}
-                >
-                  <Tooltip sticky>
-                    <span className="font-mono text-xs font-bold">
-                      {route.name}
-                    </span>
-                  </Tooltip>
-                </Polyline>
-              ) : null}
-            </React.Fragment>
-          )
-        })}
+            ) : Array.isArray(routes[0].coords) && routes[0].coords.length >= 2 ? (
+              <Polyline
+                positions={routes[0].coords}
+                color="#2563eb"
+                weight={6}
+                opacity={1}
+                pathOptions={{
+                  color: '#2563eb',
+                  weight: 6,
+                  opacity: 1,
+                }}
+                eventHandlers={{
+                  click: () => setActiveRoute(routes[0].id || 'A'),
+                }}
+              >
+                <Tooltip sticky>
+                  <span className="font-mono text-xs font-bold">
+                    {routes[0].name}
+                  </span>
+                </Tooltip>
+              </Polyline>
+            ) : null}
+          </React.Fragment>
+        )}
 
         {/* Construction / Pothole Hazards on active route */}
         {currentHazards
@@ -916,112 +1009,386 @@ export default function MapWorkspace({ activeRoute, setActiveRoute, theme, route
           ))}
       </MapContainer>
 
-      {/* ── Top-Left Floating Card with Live Autocomplete (z-[1000]) ───────────── */}
-      <div className="absolute top-4 left-4 z-[1000] w-72 sm:w-84 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md border border-neutral-200 dark:border-neutral-800 shadow-xl rounded-xl text-black dark:text-white p-4">
-        <div className="space-y-3 mb-3">
+      {/* ── Top-Left Floating Google Maps Directions UI Card (z-[1000]) ────────── */}
+      <div className="absolute top-3 sm:top-4 left-3 sm:left-4 z-[1000] w-[350px] sm:w-[410px] bg-white dark:bg-neutral-900 shadow-[0_2px_6px_rgba(0,0,0,0.2),0_8px_24px_rgba(0,0,0,0.12)] rounded-2xl sm:rounded-3xl border border-neutral-200/80 dark:border-neutral-800 p-3 sm:p-3.5 text-neutral-800 dark:text-neutral-100 font-sans">
+        
+        {/* ── 1. Top Transport Mode Selector Bar ── */}
+        <div className="flex items-center justify-between pb-2 border-b border-neutral-100 dark:border-neutral-800">
+          {/* Hamburger Menu */}
+          <button 
+            type="button" 
+            className="p-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-full text-neutral-600 dark:text-neutral-300 transition-colors cursor-pointer"
+            title="Menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          {/* Mode Tabs */}
+          <div className="flex items-center gap-1 sm:gap-2">
+            
+            {/* Mode 1: Best / Safest */}
+            <button
+              type="button"
+              onClick={() => setSelectedTravelMode('best')}
+              className="flex flex-col items-center group cursor-pointer"
+              title="Safest Best Route"
+            >
+              <div className={`p-1.5 rounded-full transition-colors flex items-center justify-center ${
+                selectedTravelMode === 'best' 
+                  ? 'bg-sky-100 dark:bg-sky-950/70 text-sky-800 dark:text-sky-300 ring-1 ring-sky-300 dark:ring-sky-700' 
+                  : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+              }`}>
+                <CornerUpRight className="w-4 h-4" />
+              </div>
+              <span className={`text-[10px] mt-0.5 ${
+                selectedTravelMode === 'best' 
+                  ? 'text-sky-800 dark:text-sky-300 font-semibold' 
+                  : 'text-neutral-500 dark:text-neutral-400 font-medium'
+              }`}>
+                Best
+              </span>
+              {selectedTravelMode === 'best' && (
+                <span className="w-7 h-[2.5px] bg-neutral-900 dark:bg-neutral-100 rounded-full mt-0.5" />
+              )}
+            </button>
+
+            {/* Mode 2: Driving (Car) */}
+            <button
+              type="button"
+              onClick={() => setSelectedTravelMode('car')}
+              className="flex flex-col items-center group cursor-pointer"
+              title="Driving"
+            >
+              <div className={`p-1.5 rounded-full transition-colors flex items-center justify-center ${
+                selectedTravelMode === 'car' 
+                  ? 'bg-sky-100 dark:bg-sky-950/70 text-sky-800 dark:text-sky-300 ring-1 ring-sky-300 dark:ring-sky-700' 
+                  : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+              }`}>
+                <Car className="w-4 h-4" />
+              </div>
+              <span className={`text-[10px] mt-0.5 ${
+                selectedTravelMode === 'car' 
+                  ? 'text-sky-800 dark:text-sky-300 font-semibold' 
+                  : 'text-neutral-500 dark:text-neutral-400 font-medium'
+              }`}>
+                {routes[0]?.durationMin ? `${routes[0].durationMin} min` : '22 min'}
+              </span>
+              {selectedTravelMode === 'car' && (
+                <span className="w-7 h-[2.5px] bg-neutral-900 dark:bg-neutral-100 rounded-full mt-0.5" />
+              )}
+            </button>
+
+            {/* Mode 3: Two-Wheeler / Bike */}
+            <button
+              type="button"
+              onClick={() => setSelectedTravelMode('bike')}
+              className="flex flex-col items-center group cursor-pointer"
+              title="Two-Wheeler / Motorcycle"
+            >
+              <div className={`p-1.5 rounded-full transition-colors flex items-center justify-center ${
+                selectedTravelMode === 'bike' 
+                  ? 'bg-sky-100 dark:bg-sky-950/70 text-sky-800 dark:text-sky-300 ring-1 ring-sky-300 dark:ring-sky-700' 
+                  : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+              }`}>
+                <Bike className="w-4 h-4" />
+              </div>
+              <span className={`text-[10px] mt-0.5 ${
+                selectedTravelMode === 'bike' 
+                  ? 'text-sky-800 dark:text-sky-300 font-semibold' 
+                  : 'text-neutral-500 dark:text-neutral-400 font-medium'
+              }`}>
+                {routes[1]?.durationMin ? `${routes[1].durationMin} min` : '20 min'}
+              </span>
+              {selectedTravelMode === 'bike' && (
+                <span className="w-7 h-[2.5px] bg-neutral-900 dark:bg-neutral-100 rounded-full mt-0.5" />
+              )}
+            </button>
+
+            {/* Mode 4: Public Transit */}
+            <button
+              type="button"
+              onClick={() => setSelectedTravelMode('transit')}
+              className="flex flex-col items-center group cursor-pointer"
+              title="Transit"
+            >
+              <div className={`p-1.5 rounded-full transition-colors flex items-center justify-center ${
+                selectedTravelMode === 'transit' 
+                  ? 'bg-sky-100 dark:bg-sky-950/70 text-sky-800 dark:text-sky-300 ring-1 ring-sky-300 dark:ring-sky-700' 
+                  : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+              }`}>
+                <Bus className="w-4 h-4" />
+              </div>
+              <span className={`text-[10px] mt-0.5 ${
+                selectedTravelMode === 'transit' 
+                  ? 'text-sky-800 dark:text-sky-300 font-semibold' 
+                  : 'text-neutral-500 dark:text-neutral-400 font-medium'
+              }`}>
+                35 min
+              </span>
+              {selectedTravelMode === 'transit' && (
+                <span className="w-7 h-[2.5px] bg-neutral-900 dark:bg-neutral-100 rounded-full mt-0.5" />
+              )}
+            </button>
+
+            {/* Mode 5: Walking */}
+            <button
+              type="button"
+              onClick={() => setSelectedTravelMode('walk')}
+              className="flex flex-col items-center group cursor-pointer"
+              title="Walking"
+            >
+              <div className={`p-1.5 rounded-full transition-colors flex items-center justify-center ${
+                selectedTravelMode === 'walk' 
+                  ? 'bg-sky-100 dark:bg-sky-950/70 text-sky-800 dark:text-sky-300 ring-1 ring-sky-300 dark:ring-sky-700' 
+                  : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+              }`}>
+                <Footprints className="w-4 h-4" />
+              </div>
+              <span className={`text-[10px] mt-0.5 ${
+                selectedTravelMode === 'walk' 
+                  ? 'text-sky-800 dark:text-sky-300 font-semibold' 
+                  : 'text-neutral-500 dark:text-neutral-400 font-medium'
+              }`}>
+                1 hr 15
+              </span>
+              {selectedTravelMode === 'walk' && (
+                <span className="w-7 h-[2.5px] bg-neutral-900 dark:bg-neutral-100 rounded-full mt-0.5" />
+              )}
+            </button>
+
+            {/* Mode 6: Bicycle */}
+            <button
+              type="button"
+              onClick={() => setSelectedTravelMode('bicycle')}
+              className="flex flex-col items-center group cursor-pointer hidden sm:flex"
+              title="Bicycle"
+            >
+              <div className={`p-1.5 rounded-full transition-colors flex items-center justify-center ${
+                selectedTravelMode === 'bicycle' 
+                  ? 'bg-sky-100 dark:bg-sky-950/70 text-sky-800 dark:text-sky-300 ring-1 ring-sky-300 dark:ring-sky-700' 
+                  : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+              }`}>
+                <Compass className="w-4 h-4" />
+              </div>
+              <span className="text-[10px] text-neutral-400 mt-0.5 font-medium">—</span>
+              {selectedTravelMode === 'bicycle' && (
+                <span className="w-7 h-[2.5px] bg-neutral-900 dark:bg-neutral-100 rounded-full mt-0.5" />
+              )}
+            </button>
+
+          </div>
+
+          {/* Close Icon */}
+          <button 
+            type="button" 
+            onClick={() => { setStartQuery(''); setDestQuery(''); }}
+            className="p-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-full text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors cursor-pointer"
+            title="Clear route inputs"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Loading Indicator */}
+        {isLoadingRoute && (
+          <div className="w-full h-1 bg-sky-100 dark:bg-sky-950 overflow-hidden rounded-full my-1.5">
+            <div className="h-full bg-blue-600 rounded-full w-2/3 animate-pulse" />
+          </div>
+        )}
+
+        {/* ── 2. Origins & Destinations Inputs with Waypoint Indicators & Swap Button ── */}
+        <div className="flex items-center gap-2.5 mt-3 relative">
           
-          {/* Start Location Input & Dropdown */}
-          <div className="relative">
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-[10px] font-mono uppercase tracking-wider text-neutral-600 dark:text-neutral-400 font-bold">
-                START LOCATION
-              </label>
-              <button
-                onClick={handleUseCurrentLocation}
-                disabled={isLocating}
-                className="text-[10px] font-mono text-neutral-500 hover:text-black dark:hover:text-white flex items-center gap-1 cursor-pointer transition-colors"
-                title="Use current GPS location"
-              >
-                {isLocating ? <Loader2 className="w-3 h-3 animate-spin text-black dark:text-white" /> : <Crosshair className="w-3 h-3 text-black dark:text-white" />}
-                <span>GPS</span>
-              </button>
+          {/* Left Column: Origin Circle, 3 Vertical Dots, Destination Red Pin */}
+          <div className="flex flex-col items-center justify-center w-5 flex-shrink-0">
+            {/* Origin hollow circle */}
+            <div className="w-3.5 h-3.5 rounded-full border-2 border-neutral-700 dark:border-neutral-300 bg-transparent flex-shrink-0" />
+            
+            {/* Connecting 3 vertical dots */}
+            <div className="flex flex-col items-center gap-[3px] my-1.5">
+              <span className="w-1 h-1 rounded-full bg-neutral-400 dark:bg-neutral-500" />
+              <span className="w-1 h-1 rounded-full bg-neutral-400 dark:bg-neutral-500" />
+              <span className="w-1 h-1 rounded-full bg-neutral-400 dark:bg-neutral-500" />
             </div>
 
-            <div className="flex items-center border border-neutral-300 dark:border-neutral-700 focus-within:border-black dark:focus-within:border-white px-2.5 py-1.5 bg-white/90 dark:bg-neutral-800/90 rounded-md transition-colors relative">
-              <span className="font-mono text-xs text-neutral-500 mr-1.5 font-bold">o</span>
-              <input
-                type="text"
-                value={startQuery}
-                onChange={handleStartInputChange}
-                onFocus={() => setShowStartDropdown(true)}
-                className="w-full text-xs font-mono outline-none bg-transparent text-black dark:text-white"
-                placeholder="Search start place in India..."
-              />
-              {isSearchingStart && <Loader2 className="w-3 h-3 animate-spin text-neutral-400 flex-shrink-0" />}
-            </div>
+            {/* Destination red pin */}
+            <MapPin className="w-4 h-4 text-red-600 fill-red-600 flex-shrink-0" />
+          </div>
 
-            {/* Start Autocomplete Dropdown (z-[2000]) */}
-            {showStartDropdown && startSuggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 z-[2000] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-2xl rounded-xl overflow-hidden max-h-56 overflow-y-auto font-sans">
-                {startSuggestions.map((item, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => handleSelectStartSuggestion(item)}
-                    className="px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 cursor-pointer transition-colors border-b border-neutral-100 dark:border-neutral-800 last:border-b-0"
+          {/* Middle Column: Two Rounded Inputs */}
+          <div className="flex-1 space-y-2">
+            
+            {/* Start Input */}
+            <div className="relative">
+              <div className="flex items-center border border-neutral-300 dark:border-neutral-700 focus-within:border-blue-600 dark:focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-600 dark:focus-within:ring-blue-400 rounded-lg bg-white dark:bg-neutral-800 px-3 py-2 transition-all">
+                <input
+                  type="text"
+                  value={startQuery}
+                  onChange={handleStartInputChange}
+                  onFocus={() => setShowStartDropdown(true)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleFindRouteClick() }}
+                  placeholder="Choose starting point, or click on the map..."
+                  className="w-full text-xs sm:text-sm font-normal outline-none bg-transparent text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400"
+                />
+                {isSearchingStart ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-neutral-400 flex-shrink-0" />
+                ) : startQuery ? (
+                  <button 
+                    type="button"
+                    onClick={() => { setStartQuery(''); setStartCoords(null); }}
+                    className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-0.5 rounded-full"
+                    title="Clear start location"
                   >
-                    <MapPin className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
-                    <span className="truncate">{item.label}</span>
-                  </div>
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleUseCurrentLocation}
+                    disabled={isLocating}
+                    className="text-neutral-400 hover:text-blue-600 dark:hover:text-blue-400 p-0.5"
+                    title="Use Current GPS Location"
+                  >
+                    <Crosshair className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Start Autocomplete Dropdown */}
+              {showStartDropdown && startSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 z-[2500] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-2xl rounded-2xl overflow-hidden max-h-56 overflow-y-auto">
+                  {startSuggestions.map((item, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => handleSelectStartSuggestion(item)}
+                      className="px-3.5 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-start gap-2.5 cursor-pointer transition-colors border-b border-neutral-100 dark:border-neutral-800 last:border-b-0"
+                    >
+                      <MapPin className="w-4 h-4 text-neutral-400 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 truncate">
+                        <div className="font-medium text-neutral-900 dark:text-neutral-100 truncate">{item.label.split(',')[0]}</div>
+                        <div className="text-[11px] text-neutral-500 truncate">{item.label.split(',').slice(1).join(',')}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Destination Input */}
+            <div className="relative">
+              <div className="flex items-center border border-neutral-300 dark:border-neutral-700 focus-within:border-blue-600 dark:focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-600 dark:focus-within:ring-blue-400 rounded-lg bg-white dark:bg-neutral-800 px-3 py-2 transition-all">
+                <input
+                  type="text"
+                  value={destQuery}
+                  onChange={handleDestInputChange}
+                  onFocus={() => setShowDestDropdown(true)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleFindRouteClick() }}
+                  placeholder="Choose destination..."
+                  className="w-full text-xs sm:text-sm font-normal outline-none bg-transparent text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400"
+                />
+                {isSearchingDest ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-neutral-400 flex-shrink-0" />
+                ) : destQuery && (
+                  <button 
+                    type="button"
+                    onClick={() => { setDestQuery(''); setDestCoords(null); }}
+                    className="text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 p-0.5 rounded-full"
+                    title="Clear destination"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Destination Autocomplete Dropdown */}
+              {showDestDropdown && destSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 z-[2500] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-2xl rounded-2xl overflow-hidden max-h-56 overflow-y-auto">
+                  {destSuggestions.map((item, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => handleSelectDestSuggestion(item)}
+                      className="px-3.5 py-2.5 text-xs text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-start gap-2.5 cursor-pointer transition-colors border-b border-neutral-100 dark:border-neutral-800 last:border-b-0"
+                    >
+                      <MapPin className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 truncate">
+                        <div className="font-medium text-neutral-900 dark:text-neutral-100 truncate">{item.label.split(',')[0]}</div>
+                        <div className="text-[11px] text-neutral-500 truncate">{item.label.split(',').slice(1).join(',')}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
+
+          {/* Right Column: Swap Locations Button */}
+          <button
+            type="button"
+            onClick={handleSwapLocations}
+            className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-full text-neutral-600 dark:text-neutral-300 transition-colors cursor-pointer flex-shrink-0"
+            title="Reverse starting point and destination"
+          >
+            <ArrowUpDown className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* ── 3. "+ Add destination" Row ── */}
+        <div className="pl-7 mt-2.5">
+          <button 
+            type="button" 
+            onClick={() => alert('Waypoints are evaluated along this road corridor.')}
+            className="flex items-center gap-2 text-xs sm:text-sm font-medium text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 py-1 transition-colors cursor-pointer"
+          >
+            <Plus className="w-4 h-4 rounded-full border border-neutral-400 dark:border-neutral-500 p-0.5" />
+            <span>Add destination</span>
+          </button>
+        </div>
+
+        {/* ── 4. Bottom Controls: "Leave now ▾" & "Options" ── */}
+        <div className="flex items-center justify-between pl-7 pr-1 mt-3 pt-2.5 border-t border-neutral-100 dark:border-neutral-800 text-xs">
+          
+          {/* "Leave now" pill button & popover */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowTimeDropdown(!showTimeDropdown)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-full text-xs font-medium text-neutral-800 dark:text-neutral-200 transition-colors cursor-pointer"
+            >
+              <Clock className="w-3.5 h-3.5 text-neutral-500" />
+              <span>{departOption}</span>
+              <ChevronDown className="w-3 h-3 text-neutral-500" />
+            </button>
+
+            {showTimeDropdown && (
+              <div className="absolute left-0 bottom-full mb-1.5 z-[2600] w-36 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-xl rounded-xl overflow-hidden py-1">
+                {['Leave now', 'Depart at...', 'Arrive by...'].map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => { setDepartOption(opt); setShowTimeDropdown(false); }}
+                    className="w-full text-left px-3 py-1.5 text-xs text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                  >
+                    {opt}
+                  </button>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Destination Location Input & Dropdown */}
-          <div className="relative">
-            <label className="block text-[10px] font-mono uppercase tracking-wider text-neutral-600 dark:text-neutral-400 font-bold mb-1">
-              DESTINATION
-            </label>
-
-            <div className="flex items-center border border-neutral-300 dark:border-neutral-700 focus-within:border-black dark:focus-within:border-white px-2.5 py-1.5 bg-white/90 dark:bg-neutral-800/90 rounded-md transition-colors relative">
-              <span className="font-mono text-xs text-neutral-500 mr-1.5 font-bold">x</span>
-              <input
-                type="text"
-                value={destQuery}
-                onChange={handleDestInputChange}
-                onFocus={() => setShowDestDropdown(true)}
-                className="w-full text-xs font-mono outline-none bg-transparent text-black dark:text-white"
-                placeholder="Search destination in India..."
-              />
-              {isSearchingDest && <Loader2 className="w-3 h-3 animate-spin text-neutral-400 flex-shrink-0" />}
-            </div>
-
-            {/* Destination Autocomplete Dropdown (z-[2000]) */}
-            {showDestDropdown && destSuggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 z-[2000] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-2xl rounded-xl overflow-hidden max-h-56 overflow-y-auto font-sans">
-                {destSuggestions.map((item, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => handleSelectDestSuggestion(item)}
-                    className="px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 flex items-center gap-2 cursor-pointer transition-colors border-b border-neutral-100 dark:border-neutral-800 last:border-b-0"
-                  >
-                    <Navigation className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
-                    <span className="truncate">{item.label}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* "Options" button */}
+          <button
+            type="button"
+            onClick={handleFindRouteClick}
+            disabled={isLoadingRoute}
+            className="text-xs font-medium text-sky-700 dark:text-sky-400 hover:underline cursor-pointer flex items-center gap-1"
+          >
+            {isLoadingRoute ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+            <span>Options</span>
+          </button>
 
         </div>
 
-        {/* Find Safest Route Button */}
-        <button 
-          onClick={handleFindRouteClick}
-          disabled={isLoadingRoute}
-          className="w-full bg-black dark:bg-white hover:bg-neutral-800 dark:hover:bg-neutral-200 text-white dark:text-black text-xs font-mono font-bold uppercase tracking-wider py-2.5 rounded-lg shadow-sm transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-        >
-          {isLoadingRoute ? (
-            <>
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              <span>Fetching Pure OSRM Routes...</span>
-            </>
-          ) : (
-            <>
-              <span>[&gt;] Find Safest Route</span>
-            </>
-          )}
-        </button>
       </div>
 
       {/* ── Map Legend Overlay (Bottom-Right, stacked above route cards, z-[1000]) ─ */}
@@ -1060,44 +1427,46 @@ export default function MapWorkspace({ activeRoute, setActiveRoute, theme, route
         </div>
       </div>
 
-      {/* ── Bottom Overlay Cards: Route Comparison UI (Mapped over `routes` state) ───── */}
-      <div className="absolute bottom-4 left-4 right-4 z-[1000] grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-4xl mx-auto">
-        {routes.map((route) => {
-          const isCurrentActive = activeRoute === route.id
-          const isRouteA = route.id === 'A'
+      {/* ── Bottom Overlay Cards: Route Comparison UI (Only shown when routes are calculated) ───── */}
+      {routes.length > 0 && (
+        <div className="absolute bottom-4 left-4 right-4 z-[1000] grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-4xl mx-auto">
+          {routes.map((route) => {
+            const isCurrentActive = activeRoute === route.id
+            const isRouteA = route.id === 'A'
 
-          return (
-            <button
-              key={`route-card-${route.id}`}
-              onClick={() => setActiveRoute(route.id)}
-              className={`text-left p-3.5 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md shadow-xl rounded-xl transition-all cursor-pointer ${
-                isCurrentActive
-                  ? isRouteA
-                    ? 'border-2 border-blue-600 dark:border-blue-400 ring-2 ring-blue-500/30'
-                    : 'border-2 border-neutral-700 dark:border-neutral-300 ring-2 ring-neutral-500/30'
-                  : 'border border-neutral-200 dark:border-neutral-800 opacity-75 hover:opacity-100'
-              }`}
-            >
-              <div className="font-mono text-xs font-bold text-black dark:text-white uppercase tracking-wider mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-2 truncate">
-                  {isRouteA ? (
-                    <span className="w-2.5 h-2.5 bg-blue-600 rounded-full inline-block flex-shrink-0" />
-                  ) : (
-                    <span className="w-2.5 h-2.5 border border-dashed border-neutral-500 rounded-full inline-block flex-shrink-0" />
-                  )}
-                  {route.name}
-                </span>
-                <span className={`text-[10px] ${isRouteA ? 'bg-emerald-600' : 'bg-amber-600'} text-white font-bold px-2 py-0.5 rounded shadow-sm flex-shrink-0`}>
-                  {route.safetyScore}/100
-                </span>
-              </div>
-              <div className="font-mono text-[11px] text-neutral-600 dark:text-neutral-400">
-                <span className="font-bold text-black dark:text-white">{route.durationMin} min</span> ({route.distanceKm} km) • {route.quickTags || (isRouteA ? 'Safest Choice' : 'Alternative Path')}
-              </div>
-            </button>
-          )
-        })}
-      </div>
+            return (
+              <button
+                key={`route-card-${route.id}`}
+                onClick={() => setActiveRoute(route.id)}
+                className={`text-left p-3.5 bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md shadow-xl rounded-xl transition-all cursor-pointer ${
+                  isCurrentActive
+                    ? isRouteA
+                      ? 'border-2 border-blue-600 dark:border-blue-400 ring-2 ring-blue-500/30'
+                      : 'border-2 border-neutral-700 dark:border-neutral-300 ring-2 ring-neutral-500/30'
+                    : 'border border-neutral-200 dark:border-neutral-800 opacity-75 hover:opacity-100'
+                }`}
+              >
+                <div className="font-mono text-xs font-bold text-black dark:text-white uppercase tracking-wider mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-2 truncate">
+                    {isRouteA ? (
+                      <span className="w-2.5 h-2.5 bg-blue-600 rounded-full inline-block flex-shrink-0" />
+                    ) : (
+                      <span className="w-2.5 h-2.5 border border-dashed border-neutral-500 rounded-full inline-block flex-shrink-0" />
+                    )}
+                    {route.name}
+                  </span>
+                  <span className={`text-[10px] ${isRouteA ? 'bg-emerald-600' : 'bg-amber-600'} text-white font-bold px-2 py-0.5 rounded shadow-sm flex-shrink-0`}>
+                    {route.safetyScore}/100
+                  </span>
+                </div>
+                <div className="font-mono text-[11px] text-neutral-600 dark:text-neutral-400">
+                  <span className="font-bold text-black dark:text-white">{route.durationMin} min</span> ({route.distanceKm} km) • {route.quickTags || (isRouteA ? 'Safest Choice' : 'Alternative Path')}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
     </div>
   )
