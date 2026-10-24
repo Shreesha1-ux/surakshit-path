@@ -91,35 +91,13 @@ export default function HomeTab({
       <div className="flex items-center justify-between px-1 mb-2">
         {/* Left Side: Custom App Logo + Greeting */}
         <div className="flex items-center gap-3">
-          {/* Custom App Logo Icon: Teardrop silhouette with soft pink/purple/blue gradient & white winding road */}
-          <div className="w-10 h-10 rounded-2xl bg-white shadow-xs p-1 flex items-center justify-center shrink-0">
-            <svg
-              className="w-full h-full"
-              viewBox="0 0 40 40"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <defs>
-                <linearGradient id="homePinGrad" x1="10%" y1="10%" x2="90%" y2="90%">
-                  <stop offset="0%" stopColor="#F472B6" />
-                  <stop offset="45%" stopColor="#A855F7" />
-                  <stop offset="100%" stopColor="#3B82F6" />
-                </linearGradient>
-              </defs>
-              <path
-                d="M20 5C13.37 5 8 10.37 8 17C8 25.5 20 35 20 35C20 35 32 25.5 32 17C32 10.37 26.63 5 20 5Z"
-                fill="url(#homePinGrad)"
-              />
-              <path
-                d="M17 12C23 14 17 19 23 21C21 24 19 25 20 28"
-                stroke="white"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <circle cx="17" cy="12" r="1.2" fill="white" />
-              <circle cx="20" cy="28" r="1.2" fill="white" />
-            </svg>
+          {/* Official SurakshitPath App Logo Icon */}
+          <div className="w-11 h-11 rounded-[18px] bg-white shadow-[0_4px_16px_rgba(0,0,0,0.06)] p-1.5 flex items-center justify-center shrink-0 border border-slate-100/60 overflow-hidden">
+            <img
+              src="/logo-icon.png"
+              alt="Surakshit Path Logo"
+              className="w-full h-full object-contain"
+            />
           </div>
 
           {/* Greeting Text Stack */}

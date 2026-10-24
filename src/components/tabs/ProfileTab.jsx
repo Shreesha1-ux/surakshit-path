@@ -76,26 +76,12 @@ export default function ProfileTab({
         </button>
 
         {/* Center Avatar Circle */}
-        <div className="w-24 h-24 rounded-full bg-white shadow-md flex items-center justify-center mb-3 p-3">
-          <svg
-            className="w-full h-full text-blue-600"
-            viewBox="0 0 100 100"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <circle cx="50" cy="50" r="46" fill="#EEF2FF" />
-            <path
-              d="M50 22C38.954 22 30 30.954 30 42C30 57 50 78 50 78C50 78 70 57 70 42C70 30.954 61.046 22 50 22Z"
-              fill="url(#grad)"
-            />
-            <circle cx="50" cy="42" r="8" fill="white" />
-            <defs>
-              <linearGradient id="grad" x1="30" y1="22" x2="70" y2="78" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#2563EB" />
-                <stop offset="1" stopColor="#7C3AED" />
-              </linearGradient>
-            </defs>
-          </svg>
+        <div className="w-24 h-24 rounded-full bg-white shadow-md flex items-center justify-center mb-3 p-4 overflow-hidden border border-slate-100">
+          <img
+            src="/logo-icon.png"
+            alt="Profile Avatar"
+            className="w-full h-full object-contain"
+          />
         </div>
 
         {/* User Name & Verified Badge */}
