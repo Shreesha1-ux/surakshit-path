@@ -155,19 +155,12 @@ export default function AITelemetryPanel({ activeRoute, theme, routesData, onClo
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [inputText, setInputText] = useState('')
   const [chatHistory, setChatHistory] = useState(() => {
-    const hasActiveTrip = routesData?.startName && routesData?.destName
-    if (hasActiveTrip) {
-      return [
-        {
-          sender: 'ai',
-          text: `Hey there! 🚗 I'm Surakshit AI, your route safety advisor. For your trip from ${routesData.startName} to ${routesData.destName}, I've analyzed Route A (Safest Highway) and Route B (Shorter Bypass). Which route are you considering, or would you like my advice?`,
-        },
-      ]
-    }
+    const startName = routesData?.startName || 'Moodbidri, Karnataka'
+    const destName = routesData?.destName || 'Mangalore, Karnataka'
     return [
       {
         sender: 'ai',
-        text: `Hey! 👋 I'm Surakshit AI, your route safety co-pilot. I specialize in helping you select the safest travel path based on street lighting, police stations, hospitals, and dark patches. Where are you heading today, or how can I assist with your route choice?`,
+        text: `Hey there! 🚗 I'm Surakshit AI, your route safety advisor. For your trip from ${startName} to ${destName}, I've analyzed Route A (NH 169 Safest Highway) and Route B (Bajpe Bypass). Route A is recommended (91/100) with continuous street lighting and active safe havens. Which route are you considering, or would you like my advice?`,
       },
     ]
   })
@@ -181,39 +174,49 @@ export default function AITelemetryPanel({ activeRoute, theme, routesData, onClo
   const chatScrollRef = useRef(null)
   const lastEvaluatedKeyRef = useRef('')
 
-  // Route candidate fallback data
+  // Route candidate fallback data (Moodbidri to Mangalore corridor)
   const routeA = routesData?.routes?.['A'] || {
     id: 'A',
-    name: 'Route A (Safest Route)',
-    distanceKm: '6.2',
-    durationMin: 22,
-    safetyScore: 89,
-    highwayPercent: 80,
+    name: 'Route A (NH 169 Safest Highway)',
+    distanceKm: '32.4',
+    durationMin: 28,
+    safetyScore: 91,
+    highwayPercent: 82,
     forestPercent: 4,
-    darkPercent: 16,
+    darkPercent: 14,
     constructionPercent: 0,
     networkCoverage: 98,
     publicHubsCount: 5,
-    publicHubs: [],
+    publicHubs: [
+      { pos: [13.0684, 74.9965], label: 'Moodbidri Police Station', type: 'police' },
+      { pos: [13.0610, 74.9769], label: 'Alva’s Health & Emergency Center', type: 'hospital' },
+      { pos: [13.0279, 74.9654], label: 'Indian Oil 24/7 Bunk, Mijar', type: 'fuel' },
+      { pos: [12.9400, 74.9288], label: 'Gurupura Police Highway Post', type: 'police' },
+      { pos: [12.9172, 74.8560], label: 'Mangalore Central Transit Hub', type: 'transit' },
+    ],
     hazards: [],
-    evaluationText: 'Route A is strongly recommended. 80% is well-lit multi-lane highway with 98% 5G signal coverage across telecom cells.',
+    evaluationText: 'Route A via NH 169 is strongly recommended for Moodbidri to Mangalore. 82% is continuous well-lit arterial highway corridor with 98% 5G signal coverage and verified safe havens in Gurupura and Moodbidri.',
   }
 
   const routeB = routesData?.routes?.['B'] || {
     id: 'B',
-    name: 'Route B (Alternative Route)',
-    distanceKm: '5.8',
-    durationMin: 20,
-    safetyScore: 68,
-    highwayPercent: 46,
-    forestPercent: 32,
-    darkPercent: 18,
+    name: 'Route B (Bajpe / Airport Bypass)',
+    distanceKm: '33.7',
+    durationMin: 32,
+    safetyScore: 71,
+    highwayPercent: 48,
+    forestPercent: 28,
+    darkPercent: 20,
     constructionPercent: 4,
-    networkCoverage: 75,
+    networkCoverage: 76,
     publicHubsCount: 3,
-    publicHubs: [],
+    publicHubs: [
+      { pos: [13.0505, 74.9698], label: 'Ganjimutt 24/7 Fuel Bunk', type: 'fuel' },
+      { pos: [12.9753, 74.8773], label: 'Bajpe Police Beat Kiosk', type: 'police' },
+      { pos: [12.9348, 74.8590], label: 'Kavoor Junction Transit Hub', type: 'transit' },
+    ],
     hazards: [],
-    evaluationText: 'Route B is a secondary alternative. Moderately lit with secondary road paving and fewer emergency points.',
+    evaluationText: 'Route B is a secondary bypass via Bajpe. Moderately lit with higher tree canopy coverage and fewer emergency safe havens.',
   }
 
   const currentRoute = routesData?.routes?.[activeRoute] || routeA

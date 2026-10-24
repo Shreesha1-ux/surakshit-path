@@ -5,12 +5,14 @@ import AITelemetryPanel from './AITelemetryPanel'
 const WorkspaceSection = forwardRef(function WorkspaceSection({ theme, userLocation }, ref) {
   const [activeRoute, setActiveRoute] = useState('A')
   
-  // Shared route data for evaluated routes (starts empty until user specifies locations)
+  // Shared route data for evaluated routes (default: Moodbidri to Mangalore)
   const [routesData, setRoutesData] = useState({
-    startName: '',
-    destName: '',
-    dataSource: '',
-    confidence: '',
+    startName: 'Moodbidri, Karnataka',
+    destName: 'Mangalore, Karnataka',
+    startCoords: [13.0684, 74.9961],
+    destCoords: [12.9172, 74.8560],
+    dataSource: 'Pure OSRM Real Road Geometry',
+    confidence: '96% (High)',
     routes: {},
   })
 

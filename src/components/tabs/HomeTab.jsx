@@ -189,7 +189,7 @@ export default function HomeTab({
             CURRENT LOCATION
           </span>
           <h2 className="text-base font-bold text-slate-900 truncate">
-            {userLocationName || (userLocation ? 'Koramangala, Bengaluru' : 'Locating GPS...')}
+            {userLocationName || (userLocation ? 'Moodbidri, Karnataka' : 'Locating GPS...')}
           </h2>
           <div className="flex items-center gap-1.5 mt-0.5">
             <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />

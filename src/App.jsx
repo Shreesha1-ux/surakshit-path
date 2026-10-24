@@ -28,13 +28,15 @@ export default function App() {
   const [userLocationName, setUserLocationName] = useState('Locating GPS...')
   const [locationError, setLocationError] = useState(null)
 
-  // Route & Evaluation State
+  // Route & Evaluation State (Default: Moodbidri to Mangalore)
   const [activeRoute, setActiveRoute] = useState('A')
   const [routesData, setRoutesData] = useState({
-    startName: '',
-    destName: '',
-    dataSource: '',
-    confidence: '',
+    startName: 'Moodbidri, Karnataka',
+    destName: 'Mangalore, Karnataka',
+    startCoords: [13.0684, 74.9961],
+    destCoords: [12.9172, 74.8560],
+    dataSource: 'Pure OSRM Real Road Geometry',
+    confidence: '96% (High)',
     routes: {},
   })
   const [autoExpandRouteSearch, setAutoExpandRouteSearch] = useState(false)
@@ -81,7 +83,7 @@ export default function App() {
   useEffect(() => {
     if (!('geolocation' in navigator)) {
       setLocationError('Geolocation not supported by browser.')
-      setUserLocationName('Koramangala, Bengaluru')
+      setUserLocationName('Moodbidri, Karnataka')
       return
     }
 
@@ -126,7 +128,7 @@ export default function App() {
         console.warn('GPS location access error:', err.message)
         setLocationError(err.message)
         if (!userLocation) {
-          setUserLocationName('Koramangala, Bengaluru')
+          setUserLocationName('Moodbidri, Karnataka')
         }
       },
       {
@@ -154,8 +156,8 @@ export default function App() {
     if (sosStatus === 'sending') return
     setSosStatus('sending')
 
-    const lat = userLocation?.lat ?? 12.9352
-    const lng = userLocation?.lng ?? 77.6245
+    const lat = userLocation?.lat ?? 13.0684
+    const lng = userLocation?.lng ?? 74.9961
     const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     const distressMessage = `🚨 *SURAKSHIT PATH AI - EMERGENCY SOS*\nI need immediate assistance!\n\n📍 Live GPS Location: https://www.google.com/maps?q=${lat},${lng}\n\n🕒 Time: ${timeString}`
 
@@ -188,8 +190,8 @@ export default function App() {
 
   // 3. Share Live GPS Tracking Link
   const handleShareLiveTracking = () => {
-    const lat = userLocation?.lat ?? 12.9352
-    const lng = userLocation?.lng ?? 77.6245
+    const lat = userLocation?.lat ?? 13.0684
+    const lng = userLocation?.lng ?? 74.9961
     const trackingUrl = `https://www.google.com/maps?q=${lat},${lng}`
     
     if (navigator.clipboard?.writeText) {

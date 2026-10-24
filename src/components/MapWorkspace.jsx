@@ -216,9 +216,11 @@ const createRouteBadgeIcon = (route, isActive) => {
 
 // ─── Defaults & Constants ─────────────────────────────────────────────────────
 
-const DEFAULT_CENTER = [12.9565, 77.6337]
-const DEFAULT_START = [12.9345, 77.6266] // Koramangala 4th Block
-const DEFAULT_END = [12.9784, 77.6408]   // Indiranagar 100ft Road
+const DEFAULT_CENTER = [12.9928, 74.9260] // Dakshina Kannada corridor between Moodbidri & Mangalore
+const DEFAULT_START = [13.0684, 74.9961] // Moodbidri Bus Stand / Town Center
+const DEFAULT_END = [12.9172, 74.8560]   // Mangalore City Center
+const DEFAULT_START_NAME = 'Moodbidri, Karnataka'
+const DEFAULT_END_NAME = 'Mangalore, Karnataka'
 
 const ROAD_STYLES = {
   HIGHWAY_LIT: {
@@ -310,83 +312,169 @@ function generateSpatialEnvironment(coords, routeType = 'highway') {
 }
 
 const INITIAL_COORDS_A = [
-  [12.9345, 77.6266],
-  [12.9450, 77.6300],
-  [12.9565, 77.6337],
-  [12.9680, 77.6380],
-  [12.9784, 77.6408],
+  [13.0684, 74.9965],
+  [13.0697, 74.9966],
+  [13.0653, 74.9894],
+  [13.0610, 74.9769],
+  [13.0596, 74.9762],
+  [13.0600, 74.9743],
+  [13.0550, 74.9730],
+  [13.0541, 74.9713],
+  [13.0503, 74.9698],
+  [13.0469, 74.9705],
+  [13.0388, 74.9664],
+  [13.0279, 74.9654],
+  [13.0183, 74.9694],
+  [13.0097, 74.9693],
+  [12.9997, 74.9656],
+  [12.9973, 74.9631],
+  [12.9896, 74.9613],
+  [12.9877, 74.9573],
+  [12.9773, 74.9527],
+  [12.9662, 74.9363],
+  [12.9621, 74.9335],
+  [12.9490, 74.9344],
+  [12.9456, 74.9330],
+  [12.9428, 74.9366],
+  [12.9390, 74.9369],
+  [12.9414, 74.9330],
+  [12.9400, 74.9288],
+  [12.9361, 74.9259],
+  [12.9339, 74.9188],
+  [12.9275, 74.9171],
+  [12.9242, 74.9118],
+  [12.9198, 74.9093],
+  [12.9201, 74.9059],
+  [12.9182, 74.9030],
+  [12.9096, 74.8960],
+  [12.9154, 74.8868],
+  [12.9151, 74.8823],
+  [12.9181, 74.8795],
+  [12.9151, 74.8760],
+  [12.9163, 74.8693],
+  [12.9235, 74.8681],
+  [12.9257, 74.8586],
+  [12.9193, 74.8591],
+  [12.9167, 74.8581],
+  [12.9172, 74.8560],
 ]
 
 const INITIAL_COORDS_B = [
-  [12.9345, 77.6266],
-  [12.9400, 77.6380],
-  [12.9550, 77.6450],
-  [12.9690, 77.6420],
-  [12.9784, 77.6408],
+  [13.0684, 74.9965],
+  [13.0697, 74.9966],
+  [13.0653, 74.9894],
+  [13.0594, 74.9738],
+  [13.0550, 74.9730],
+  [13.0549, 74.9718],
+  [13.0505, 74.9698],
+  [13.0471, 74.9705],
+  [13.0366, 74.9661],
+  [13.0270, 74.9655],
+  [13.0186, 74.9694],
+  [13.0097, 74.9693],
+  [12.9997, 74.9656],
+  [12.9973, 74.9631],
+  [12.9896, 74.9613],
+  [12.9877, 74.9573],
+  [12.9768, 74.9523],
+  [12.9662, 74.9363],
+  [12.9608, 74.9332],
+  [12.9647, 74.9315],
+  [12.9677, 74.9280],
+  [12.9752, 74.9254],
+  [12.9791, 74.9169],
+  [12.9817, 74.9137],
+  [12.9845, 74.9128],
+  [12.9822, 74.9104],
+  [12.9833, 74.9068],
+  [12.9809, 74.8980],
+  [12.9822, 74.8858],
+  [12.9753, 74.8773],
+  [12.9740, 74.8772],
+  [12.9731, 74.8800],
+  [12.9698, 74.8799],
+  [12.9695, 74.8788],
+  [12.9661, 74.8796],
+  [12.9599, 74.8803],
+  [12.9605, 74.8775],
+  [12.9593, 74.8746],
+  [12.9572, 74.8745],
+  [12.9563, 74.8720],
+  [12.9539, 74.8726],
+  [12.9500, 74.8666],
+  [12.9426, 74.8674],
+  [12.9348, 74.8590],
+  [12.9286, 74.8593],
+  [12.9272, 74.8576],
+  [12.9209, 74.8595],
+  [12.9168, 74.8582],
+  [12.9172, 74.8560],
 ]
 
 const INITIAL_ROUTES = [
   {
     id: 'A',
-    name: 'Route A (Safest Route)',
+    name: 'Route A (NH 169 Safest Highway)',
     type: 'Primary Arterial & Lit Highway Corridor',
     coords: INITIAL_COORDS_A,
     geometry: {
       coordinates: INITIAL_COORDS_A.map(([lat, lng]) => [lng, lat]),
     },
     segments: [
-      { type: 'HIGHWAY_LIT', coords: INITIAL_COORDS_A.slice(0, 3) },
-      { type: 'HIGHWAY_LIT', coords: INITIAL_COORDS_A.slice(2, 5) },
+      { type: 'HIGHWAY_LIT', coords: INITIAL_COORDS_A.slice(0, 20) },
+      { type: 'HIGHWAY_LIT', coords: INITIAL_COORDS_A.slice(19, 45) },
     ],
-    distKm: 6.2,
-    distanceKm: '6.2',
-    durationMin: 22,
-    safetyScore: 89,
-    scoreBreakdown: { highway: 20, network: 19, safePlaces: 24, constructionPenalty: 0, darkForestPenalty: 4, total: 89 },
+    distKm: 32.4,
+    distanceKm: '32.4',
+    durationMin: 28,
+    safetyScore: 91,
+    scoreBreakdown: { highway: 20, network: 19, safePlaces: 25, constructionPenalty: 0, darkForestPenalty: 3, total: 91 },
     networkCoverage: 98,
-    highwayPercent: 80,
+    highwayPercent: 82,
     forestPercent: 4,
-    darkPercent: 16,
+    darkPercent: 14,
     constructionPercent: 0,
-    quickTags: '80% Lit • Safest Choice',
+    quickTags: '82% Lit • Safest Choice',
     publicHubs: [
-      { pos: [12.9450, 77.6300], label: 'HP 24/7 Fuel & Air Bunk', type: 'fuel' },
-      { pos: [12.9565, 77.6337], label: 'City Police Highway Post', type: 'police' },
-      { pos: [12.9680, 77.6380], label: 'Central Bus Transit Hub', type: 'transit' },
-      { pos: [12.9720, 77.6400], label: '24/7 Emergency Hospital', type: 'hospital' },
-      { pos: [12.9760, 77.6405], label: 'All-Night Commercial CCTV Zone', type: 'shop' },
+      { pos: [13.0684, 74.9965], label: 'Moodbidri Police Station', type: 'police' },
+      { pos: [13.0610, 74.9769], label: 'Alva’s Health & Emergency Center', type: 'hospital' },
+      { pos: [13.0279, 74.9654], label: 'Indian Oil 24/7 Bunk, Mijar', type: 'fuel' },
+      { pos: [12.9400, 74.9288], label: 'Gurupura Police Highway Post', type: 'police' },
+      { pos: [12.9172, 74.8560], label: 'Mangalore Central Transit Hub', type: 'transit' },
     ],
     hazards: [],
+    evaluationText: 'Route A via NH 169 is strongly recommended for Moodbidri to Mangalore. 82% is continuous well-lit arterial highway corridor with 98% 5G signal coverage and verified safe havens in Gurupura and Moodbidri.',
   },
   {
     id: 'B',
-    name: 'Route B (Alternative Route)',
+    name: 'Route B (Bajpe / Airport Bypass)',
     type: 'Secondary Road / Urban Bypass',
     coords: INITIAL_COORDS_B,
     geometry: {
       coordinates: INITIAL_COORDS_B.map(([lat, lng]) => [lng, lat]),
     },
     segments: [
-      { type: 'FOREST_ISOLATED', coords: INITIAL_COORDS_B.slice(0, 3) },
-      { type: 'HIGHWAY_LIT', coords: INITIAL_COORDS_B.slice(2, 5) },
+      { type: 'FOREST_ISOLATED', coords: INITIAL_COORDS_B.slice(0, 24) },
+      { type: 'HIGHWAY_LIT', coords: INITIAL_COORDS_B.slice(23, 49) },
     ],
-    distKm: 5.8,
-    distanceKm: '5.8',
-    durationMin: 20,
-    safetyScore: 68,
-    scoreBreakdown: { highway: 13, network: 15, safePlaces: 18, constructionPenalty: 1, darkForestPenalty: 7, total: 68 },
-    networkCoverage: 75,
-    highwayPercent: 46,
-    forestPercent: 32,
-    darkPercent: 18,
+    distKm: 33.7,
+    distanceKm: '33.7',
+    durationMin: 32,
+    safetyScore: 71,
+    scoreBreakdown: { highway: 14, network: 16, safePlaces: 18, constructionPenalty: 1, darkForestPenalty: 6, total: 71 },
+    networkCoverage: 76,
+    highwayPercent: 48,
+    forestPercent: 28,
+    darkPercent: 20,
     constructionPercent: 4,
-    quickTags: '46% Lit • Alternative Path',
+    quickTags: '48% Lit • Alternative Path',
     publicHubs: [
-      { pos: [12.9400, 77.6380], label: 'Highway Petrol Bunk', type: 'fuel' },
-      { pos: [12.9550, 77.6450], label: 'Police Beat Kiosk', type: 'police' },
-      { pos: [12.9690, 77.6420], label: 'Suburban Bus Stand', type: 'transit' },
+      { pos: [13.0505, 74.9698], label: 'Ganjimutt 24/7 Fuel Bunk', type: 'fuel' },
+      { pos: [12.9753, 74.8773], label: 'Bajpe Police Beat Kiosk', type: 'police' },
+      { pos: [12.9348, 74.8590], label: 'Kavoor Junction Transit Hub', type: 'transit' },
     ],
     hazards: [],
+    evaluationText: 'Route B is a secondary bypass via Bajpe. Moderately lit with higher tree canopy coverage and fewer emergency safe havens.',
   },
 ]
 
@@ -403,8 +491,8 @@ export default function MapWorkspace({
   autoExpandSearch = false,
 }) {
   // Input fields & coordinates
-  const initialStartCoords = routesData?.startCoords || (userLocation?.lat && userLocation?.lng ? [userLocation.lat, userLocation.lng] : null)
-  const initialStartName = routesData?.startName || (userLocationName && userLocationName !== 'Locating GPS...' ? userLocationName : (userLocation ? 'Current Location' : ''))
+  const initialStartCoords = routesData?.startCoords || DEFAULT_START
+  const initialStartName = routesData?.startName || DEFAULT_START_NAME
 
   const [startQuery, setStartQuery] = useState(initialStartName)
   const [startCoords, setStartCoords] = useState(initialStartCoords)
@@ -412,8 +500,8 @@ export default function MapWorkspace({
   const [isSearchingStart, setIsSearchingStart] = useState(false)
   const [showStartDropdown, setShowStartDropdown] = useState(false)
 
-  const [destQuery, setDestQuery] = useState(routesData?.destName || '')
-  const [destCoords, setDestCoords] = useState(null)
+  const [destQuery, setDestQuery] = useState(routesData?.destName || DEFAULT_END_NAME)
+  const [destCoords, setDestCoords] = useState(routesData?.destCoords || DEFAULT_END)
   const [destSuggestions, setDestSuggestions] = useState([])
   const [isSearchingDest, setIsSearchingDest] = useState(false)
   const [showDestDropdown, setShowDestDropdown] = useState(false)
@@ -423,10 +511,10 @@ export default function MapWorkspace({
   const [mapTileLayer, setMapTileLayer] = useState('standard')
   const mapInstanceRef = useRef(null)
 
-  // Exactly 2 Routes State (starts empty until locations are selected)
-  const [routes, setRoutes] = useState([])
+  // Exactly 2 Routes State (defaults to INITIAL_ROUTES)
+  const [routes, setRoutes] = useState(INITIAL_ROUTES)
 
-  const [mapBounds, setMapBounds] = useState(null)
+  const [mapBounds, setMapBounds] = useState([[12.90, 74.84], [13.08, 75.01]])
   const [isLoadingRoute, setIsLoadingRoute] = useState(false)
   const [isLocating, setIsLocating] = useState(false)
   const [selectedTravelMode, setSelectedTravelMode] = useState('best')
@@ -443,7 +531,7 @@ export default function MapWorkspace({
     }
   }, [autoExpandSearch])
 
-  // Keep start coordinates & name synced with live GPS location
+  // Keep start coordinates & name synced with live GPS location when user chooses Current Location
   useEffect(() => {
     if (userLocation?.lat && userLocation?.lng) {
       const locCoords = [userLocation.lat, userLocation.lng]
@@ -451,15 +539,12 @@ export default function MapWorkspace({
         ? userLocationName
         : 'Current Location'
 
-      setStartCoords((prev) => (!prev || prev === DEFAULT_START ? locCoords : prev))
-      setStartQuery((prev) => {
-        if (!prev || prev === 'Your Location' || prev === 'Current Location' || prev === 'Locating GPS...' || prev === 'Koramangala 4th Block') {
-          return locName
-        }
-        return prev
-      })
+      if (startQuery === 'Current Location' || startQuery === 'Your Location' || startQuery === 'Locating GPS...') {
+        setStartCoords(locCoords)
+        setStartQuery(locName)
+      }
     }
-  }, [userLocation, userLocationName])
+  }, [userLocation, userLocationName, startQuery])
 
   // Synchronize incoming routesData changes
   useEffect(() => {
@@ -629,7 +714,7 @@ export default function MapWorkspace({
 
     if (!('geolocation' in navigator)) {
       setStartCoords(DEFAULT_START)
-      setStartQuery('Koramangala, Bengaluru')
+      setStartQuery(DEFAULT_START_NAME)
       return
     }
 
@@ -661,7 +746,7 @@ export default function MapWorkspace({
         setIsLocating(false)
         console.warn('GPS location error:', err)
         setStartCoords(DEFAULT_START)
-        setStartQuery('Koramangala, Bengaluru')
+        setStartQuery(DEFAULT_START_NAME)
       },
       { timeout: 8000, enableHighAccuracy: true }
     )
@@ -1011,8 +1096,8 @@ export default function MapWorkspace({
       // Sync with parent routesData for AITelemetryPanel
       if (setRoutesData) {
         setRoutesData({
-          startName: startName || 'Start Point',
-          destName: destName || 'Destination Point',
+          startName: startName || DEFAULT_START_NAME,
+          destName: destName || DEFAULT_END_NAME,
           dataSource: overpassResults ? 'OSM Overpass Realtime + Pure OSRM Geometry' : 'Pure OSRM Real Road Geometry',
           confidence: '96% (High)',
           routes: {
@@ -1040,7 +1125,7 @@ export default function MapWorkspace({
 
         const destToFetch = routesData.destName
         const startToFetch = routesData.startCoords || (userLocation?.lat && userLocation?.lng ? [userLocation.lat, userLocation.lng] : DEFAULT_START)
-        const startNameToFetch = routesData.startName || (userLocationName && userLocationName !== 'Locating GPS...' ? userLocationName : 'Current Location')
+        const startNameToFetch = routesData.startName || (userLocationName && userLocationName !== 'Locating GPS...' ? userLocationName : DEFAULT_START_NAME)
 
         setStartCoords(startToFetch)
         setStartQuery(startNameToFetch)
@@ -1113,13 +1198,13 @@ export default function MapWorkspace({
     const trimmedStart = startQuery.trim()
 
     if (!trimmedDest && !trimmedStart) {
-      const defaultStart = (userLocation?.lat && userLocation?.lng) ? [userLocation.lat, userLocation.lng] : DEFAULT_START
-      const defaultStartName = userLocationName && userLocationName !== 'Locating GPS...' ? userLocationName : 'Koramangala, Bengaluru'
+      const defaultStart = DEFAULT_START
+      const defaultStartName = DEFAULT_START_NAME
       setStartCoords(defaultStart)
       setStartQuery(defaultStartName)
       setDestCoords(DEFAULT_END)
-      setDestQuery('Indiranagar, Bangalore')
-      await fetchRoutes(defaultStart, DEFAULT_END, defaultStartName, 'Indiranagar, Bangalore')
+      setDestQuery(DEFAULT_END_NAME)
+      await fetchRoutes(defaultStart, DEFAULT_END, defaultStartName, DEFAULT_END_NAME)
       return
     }
 
@@ -1150,7 +1235,7 @@ export default function MapWorkspace({
         }
         if (!finalStart) {
           finalStart = (userLocation?.lat && userLocation?.lng) ? [userLocation.lat, userLocation.lng] : DEFAULT_START
-          effectiveStartName = userLocationName && userLocationName !== 'Locating GPS...' ? userLocationName : 'Current Location'
+          effectiveStartName = userLocationName && userLocationName !== 'Locating GPS...' ? userLocationName : DEFAULT_START_NAME
           setStartCoords(finalStart)
           setStartQuery(effectiveStartName)
         }
