@@ -186,34 +186,6 @@ function MapClickHandler({ onMapClick }) {
   return null
 }
 
-// ─── Floating Midpoint Route Badge Icon (Google Maps Style) ───────────────────
-
-const createRouteBadgeIcon = (route, isActive) => {
-  const isA = route.id === 'A'
-  const pillClass = isActive
-    ? isA
-      ? 'bg-blue-600 text-white border-blue-700 shadow-lg ring-2 ring-blue-300'
-      : 'bg-neutral-900 text-white border-neutral-950 shadow-lg ring-2 ring-neutral-400'
-    : 'bg-white text-neutral-800 border-neutral-300 shadow-md hover:border-neutral-500'
-
-  const scoreClass = isA ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white'
-
-  return L.divIcon({
-    className: 'leaflet-div-icon',
-    html: `
-      <div class="cursor-pointer px-2.5 py-1 rounded-full border text-[11px] font-bold font-mono whitespace-nowrap flex items-center gap-1.5 transition-transform duration-150 hover:scale-105 ${pillClass}">
-        <span class="w-2 h-2 rounded-full ${isA ? 'bg-blue-300' : 'bg-amber-300'}"></span>
-        <span>${isA ? 'Route A (Safest)' : 'Route B (Alt)'}</span>
-        <span>•</span>
-        <span>${route.durationMin}m</span>
-        <span class="px-1.5 py-0.5 rounded text-[9px] ${scoreClass}">${route.safetyScore}/100</span>
-      </div>
-    `,
-    iconSize: [160, 26],
-    iconAnchor: [80, 13],
-  })
-}
-
 // ─── Defaults & Constants ─────────────────────────────────────────────────────
 
 const DEFAULT_CENTER = [12.9928, 74.9260] // Dakshina Kannada corridor between Moodbidri & Mangalore
@@ -1444,28 +1416,6 @@ export default function MapWorkspace({
               </Polyline>
             )}
           </React.Fragment>
-        )}
-
-        {/* ── Floating Midpoint Badges on BOTH routes (Google Maps Style) ── */}
-        {routes[0] && routes[0].coords && routes[0].coords.length >= 2 && (
-          <Marker
-            key={`badge-route-a-${routes[0].coords.length}-${activeRoute}`}
-            position={routes[0].coords[Math.floor(routes[0].coords.length / 2)]}
-            icon={createRouteBadgeIcon(routes[0], activeRoute === 'A')}
-            eventHandlers={{
-              click: () => setActiveRoute('A'),
-            }}
-          />
-        )}
-        {routes[1] && routes[1].coords && routes[1].coords.length >= 2 && (
-          <Marker
-            key={`badge-route-b-${routes[1].coords.length}-${activeRoute}`}
-            position={routes[1].coords[Math.floor(routes[1].coords.length / 2)]}
-            icon={createRouteBadgeIcon(routes[1], activeRoute === 'B')}
-            eventHandlers={{
-              click: () => setActiveRoute('B'),
-            }}
-          />
         )}
 
         {/* Construction / Pothole Hazards on active route */}
