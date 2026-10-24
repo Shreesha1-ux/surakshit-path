@@ -255,6 +255,7 @@ export default function App() {
               onOpenAiChat={() => setIsAiModalOpen(true)}
               routesData={routesData}
               recentActivity={recentActivity}
+              onShowToast={showToast}
             />
           )}
 

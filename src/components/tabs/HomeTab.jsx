@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   Clock,
   Sparkles,
+  Bell,
 } from 'lucide-react'
 
 export default function HomeTab({
@@ -26,9 +27,28 @@ export default function HomeTab({
   onOpenAiChat,
   routesData,
   recentActivity = [],
+  onShowToast,
 }) {
   const [isRecentActivityOpen, setIsRecentActivityOpen] = useState(false)
   const [isListening, setIsListening] = useState(false)
+
+  // Dynamic time-of-day greeting (Good morning, Good afternoon, Good evening)
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good morning,' : hour < 17 ? 'Good afternoon,' : 'Good evening,'
+
+  // User name (defaults to "there." as seen in reference screenshot)
+  const [userName] = useState(() => {
+    try {
+      const saved = localStorage.getItem('surakshit_user_profile')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed?.name && parsed.name.toLowerCase() !== 'kanav' && parsed.name.toLowerCase() !== 'user') {
+          return `${parsed.name}.`
+        }
+      }
+    } catch (e) {}
+    return 'there.'
+  })
 
   // Quick voice query mock or browser speech recognition
   const handleVoiceSearch = (e) => {
@@ -62,17 +82,118 @@ export default function HomeTab({
   const routeB = routesData?.routes?.B
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 pt-3 pb-28 space-y-4 no-scrollbar">
+    <div className="flex-1 overflow-y-auto px-4 pt-5 pb-28 space-y-4 no-scrollbar">
       
-      {/* ── 1. Top Search Banner (Pastel blue/lavender gradient) ───────────── */}
-      <section className="bg-gradient-to-b from-[#DCE6FF] to-[#E8EEFF] p-4 rounded-[28px] shadow-sm">
+      {/* ── 1. Top Greeting & Notification Header Bar ─────────────────────── */}
+      <div className="flex items-center justify-between px-1 mb-2">
+        {/* Left Side: Custom App Logo + Greeting */}
+        <div className="flex items-center gap-3">
+          {/* Custom App Logo Icon: Teardrop silhouette with soft pink/purple/blue gradient & white winding road */}
+          <div className="w-10 h-10 rounded-2xl bg-white shadow-xs p-1 flex items-center justify-center shrink-0">
+            <svg
+              className="w-full h-full"
+              viewBox="0 0 40 40"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <defs>
+                <linearGradient id="homePinGrad" x1="10%" y1="10%" x2="90%" y2="90%">
+                  <stop offset="0%" stopColor="#F472B6" />
+                  <stop offset="45%" stopColor="#A855F7" />
+                  <stop offset="100%" stopColor="#3B82F6" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M20 5C13.37 5 8 10.37 8 17C8 25.5 20 35 20 35C20 35 32 25.5 32 17C32 10.37 26.63 5 20 5Z"
+                fill="url(#homePinGrad)"
+              />
+              <path
+                d="M17 12C23 14 17 19 23 21C21 24 19 25 20 28"
+                stroke="white"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle cx="17" cy="12" r="1.2" fill="white" />
+              <circle cx="20" cy="28" r="1.2" fill="white" />
+            </svg>
+          </div>
+
+          {/* Greeting Text Stack */}
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-slate-500 leading-tight">
+              {greeting}
+            </span>
+            <span className="text-2xl font-extrabold text-[#1E1B4B] leading-tight tracking-tight">
+              {userName}
+            </span>
+          </div>
+        </div>
+
+        {/* Right Side: Notification Bell Button */}
+        <button
+          type="button"
+          onClick={() => {
+            if (onShowToast) {
+              onShowToast('Safety Notice: Highway patrols active on major routes.')
+            }
+          }}
+          className="p-1 hover:bg-slate-100 rounded-full transition-colors relative cursor-pointer"
+          title="Notifications"
+        >
+          <div className="relative">
+            <Bell className="w-6 h-6 text-[#1E1B4B]" strokeWidth={2} />
+            <span className="w-2 h-2 rounded-full bg-[#FF5A5F] absolute -top-0.5 right-0.5 border border-white" />
+          </div>
+        </button>
+      </div>
+
+      {/* ── 2. "Where are you going today?" Pastel Hero Card ────────────────── */}
+      <section className="rounded-[30px] p-6 bg-gradient-to-br from-[#F9E7F0] via-[#EAEFFF] to-[#CADBFF] shadow-[0_8px_30px_rgba(99,102,241,0.08)] space-y-4">
+        {/* Heading */}
+        <div>
+          <h1 className="text-[26px] leading-[1.2] font-extrabold text-[#1E1B4B] tracking-tight whitespace-pre-line">
+            Where are you{'\n'}going today?
+          </h1>
+          <p className="text-sm font-medium text-slate-500 mt-1">
+            Plan, travel, and reach safely.
+          </p>
+        </div>
+
+        {/* Visual Route Line Indicator */}
+        <div className="flex items-center w-full pt-2">
+          {/* Left endpoint: Hollow blue circle */}
+          <div className="w-3.5 h-3.5 rounded-full border-[3px] border-[#2563EB] bg-white shrink-0" />
+          {/* Middle connector: Full-width horizontal dashed line */}
+          <div className="flex-1 border-t-2 border-dashed border-[#93A8F4] mx-1" />
+          {/* Right endpoint: Hollow coral-red circle */}
+          <div className="w-3.5 h-3.5 rounded-full border-[3px] border-[#F43F5E] bg-white shrink-0" />
+        </div>
+
+        {/* "Your current route >" Link */}
+        <div>
+          <button
+            type="button"
+            onClick={() => onNavigateToRoute()}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+          >
+            <span>
+              {routesData?.startName && routesData?.destName
+                ? `Your current route: ${routesData.startName} → ${routesData.destName}`
+                : 'Your current route'}
+            </span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Embedded White Pill Search Bar */}
         <div
           onClick={() => onNavigateToRoute()}
-          className="bg-white rounded-full px-5 py-2.5 flex items-center justify-between shadow-sm cursor-pointer hover:shadow-md transition-all active:scale-[0.99]"
+          className="bg-white rounded-full pl-5 pr-2 py-2 flex items-center justify-between shadow-[0_6px_20px_rgba(37,99,235,0.08)] mt-3 cursor-pointer hover:shadow-md transition-all active:scale-[0.99]"
         >
-          <div className="flex items-center gap-3 overflow-hidden">
-            <Search className="w-5 h-5 text-slate-400 shrink-0" />
-            <span className="text-slate-500 text-base font-medium truncate">
+          <div className="flex items-center gap-3 overflow-hidden flex-1 mr-3">
+            <Search className="w-5 h-5 text-slate-500 shrink-0" />
+            <span className="text-[15px] font-medium text-slate-500 truncate flex-1 text-left">
               {routesData?.destName ? `To: ${routesData.destName}` : 'Search destination'}
             </span>
           </div>
@@ -80,17 +201,17 @@ export default function HomeTab({
           <button
             type="button"
             onClick={handleVoiceSearch}
-            className={`w-11 h-11 rounded-full bg-gradient-to-tr from-[#5B67F1] to-[#7C88FF] flex items-center justify-center text-white shadow-md shrink-0 transition-transform active:scale-95 ${
+            className={`w-11 h-11 rounded-full bg-gradient-to-tr from-[#5865F2] to-[#7B88FF] flex items-center justify-center text-white shadow-md shrink-0 transition-transform active:scale-95 cursor-pointer ${
               isListening ? 'ring-4 ring-indigo-300 animate-pulse' : ''
             }`}
             title="Voice Search"
           >
-            <Mic className="w-5 h-5" />
+            <Mic className="w-5 h-5 text-white" />
           </button>
         </div>
       </section>
 
-      {/* ── 2. Current Location Card ──────────────────────────────────────── */}
+      {/* ── 3. Current Location Card ──────────────────────────────────────── */}
       <section className="bg-white rounded-[24px] p-4 shadow-[0_4px_20px_rgba(0,0,0,0.03)] flex items-center gap-4 border border-slate-100/50">
         <div className="w-12 h-12 rounded-2xl bg-[#EEF0FF] flex items-center justify-center text-[#4F46E5] shrink-0">
           <MapPin className="w-6 h-6 fill-[#4F46E5]" />
@@ -111,11 +232,15 @@ export default function HomeTab({
         </div>
       </section>
 
-      {/* ── 3. Smart Safety Card (2 columns) ──────────────────────────────── */}
+      {/* ── 4. Smart Safety Card (2 columns) ──────────────────────────────── */}
       <section className="bg-white rounded-[26px] p-5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100/50">
         <div className="flex items-center gap-2 mb-4">
-          <ShieldCheck className="w-5 h-5 text-[#2563EB]" />
           <h3 className="text-lg font-bold text-slate-900">Smart Safety</h3>
+          <span className="w-5 h-5 rounded-full bg-[#5B4EFF] text-white flex items-center justify-center shrink-0">
+            <svg className="w-3 h-3 stroke-[3]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          </span>
         </div>
 
         <div className="grid grid-cols-2 divide-x divide-slate-100">
@@ -149,7 +274,7 @@ export default function HomeTab({
         </div>
       </section>
 
-      {/* ── 4. 2x2 Feature Action Grid ────────────────────────────────────── */}
+      {/* ── 5. 2x2 Feature Action Grid ────────────────────────────────────── */}
       <section className="grid grid-cols-2 gap-3.5">
         
         {/* Card 1 — SOS (Top-Left) */}
@@ -230,7 +355,7 @@ export default function HomeTab({
 
       </section>
 
-      {/* ── 5. Recent Activity Card (Collapsible) ─────────────────────────── */}
+      {/* ── 6. Recent Activity Card (Collapsible) ─────────────────────────── */}
       <section className="bg-white rounded-[24px] shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100/50 overflow-hidden">
         <div
           onClick={() => setIsRecentActivityOpen((prev) => !prev)}
