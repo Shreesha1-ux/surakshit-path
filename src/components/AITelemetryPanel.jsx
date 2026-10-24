@@ -71,52 +71,101 @@ async function callGemini(promptText, apiKey, maxTokens = 350) {
   return text.replace(/\*/g, '').trim()
 }
 
-// Smart local context-aware response generator based on user intent
+// Smart conversational route selection response generator
 function generateContextualReply(userMessage, rAData, rBData, startName, endName) {
   const q = (userMessage || '').trim().toLowerCase()
   const hour = new Date().getHours()
   const isNight = hour >= 18 || hour < 6
+  const timeDiff = Math.abs((rAData?.duration || 22) - (rBData?.duration || 20))
+  const hasTrip = startName && endName && startName !== 'Start Point'
 
-  // 1. Greetings (hi, hii, hello, hey, good morning, etc.)
-  const isGreeting = /\b(hi|hii|hiii|hello|hey|heyy|greetings|good morning|good afternoon|good evening|howdy|sup|hola)\b/i.test(q) || ['hi', 'hii', 'hiii', 'hello', 'hey', 'heyy'].includes(q)
-  if (isGreeting) {
-    return `Hello! I'm Surakshit Path AI. I've analyzed your journey from ${startName} to ${endName}. Route A scores ${rAData.score}/100 (${rAData.duration} mins, ${rAData.distance} km) while Route B scores ${rBData.score}/100 (${rBData.duration} mins, ${rBData.distance} km). You can ask me about street lighting, hospitals & police support, forest stretches, road construction, or why Route A is safer!`
+  // 1. Casual Greetings & Welcomes ("hi", "hello", "hey", "how are you", "what's up", "good morning")
+  if (/\b(hi|hii|hiii|hello|hey|heyy|howdy|sup|hola|good\s*(morning|afternoon|evening|day))\b/i.test(q) || ['hi', 'hii', 'hiii', 'hello', 'hey'].includes(q)) {
+    if (hasTrip) {
+      return `Hey! 👋 Good to talk to you. I've analyzed your trip to ${endName}. Route A (${rAData.score}/100) is the safest choice, while Route B (${rBData.score}/100) is about ${timeDiff} min faster. Which route are you leaning toward, or want my advice on the safest pick?`
+    }
+    return `Hey there! 👋 I'm Surakshit AI, your route safety co-pilot. I specialize in helping you pick the safest road based on street lighting, police presence, and road hazards. Where are you heading today?`
   }
 
-  // 2. Lighting / Night / Dark / Visibility questions
-  if (q.includes('light') || q.includes('dark') || q.includes('night') || q.includes('lamp') || q.includes('visibility') || q.includes('illum') || q.includes('glow')) {
-    return `Route A provides ${rAData.lighting}% continuous high-luminance street lighting along its multi-lane highway corridor, with only ${rAData.forestOrDarkZones}% unlit or tree canopy stretches. In contrast, Route B provides only ${rBData.lighting}% lighting and has ${rBData.forestOrDarkZones}% dark stretches. ${isNight ? 'Because you are traveling at night, Route A is strongly recommended for driver visibility and situational awareness.' : 'Even in daytime, Route A provides significantly wider, clearer road visibility than the secondary bypass corridor.'}`
+  // 2. "How are you" / "What are you doing"
+  if (q.includes('how are you') || q.includes('how r u') || q.includes('how are u') || q.includes('what are you doing') || q.includes("what's up") || q.includes('whats up')) {
+    return `I'm doing great, thanks for asking! I'm actively monitoring road conditions and safety telemetry for your journey. Would you like a quick recommendation on whether to pick Route A or Route B?`
   }
 
-  // 3. Police / Hospital / Help / Safe Havens questions
-  if (q.includes('police') || q.includes('hospital') || q.includes('safe') || q.includes('support') || q.includes('help') || q.includes('emergency') || q.includes('fuel') || q.includes('petrol') || q.includes('bus') || q.includes('haven') || q.includes('station')) {
-    return `Along Route A, there are ${rAData.totalPois} verified safe havens: ${rAData.policeCount} police post(s), ${rAData.hospitalCount} emergency hospital(s), ${rAData.busStandCount} transit station(s), and ${rAData.fuelCount} 24/7 petrol bunk(s). Route B offers only ${rBData.totalPois} safe havens (${rBData.policeCount} police, ${rBData.hospitalCount} hospital, ${rBData.busStandCount} bus, ${rBData.fuelCount} fuel), meaning Route A provides vastly superior emergency dispatch and assistance.`
+  // 3. Identity & Purpose ("who are you", "what do you do", "what is your job", "what can you do")
+  if (q.includes('who are you') || q.includes('what can you do') || q.includes('your job') || q.includes('what is this') || q.includes('help me')) {
+    return `I'm your personal route selection assistant! My job is to compare multiple paths in real-time—analyzing continuous street lighting, police posts, hospitals, 24/7 petrol bunks, and dark forest stretches—so you can pick the safest corridor with confidence.`
   }
 
-  // 4. Road Condition / Construction / Hazards / Potholes / Forest questions
-  if (q.includes('road') || q.includes('construction') || q.includes('pothole') || q.includes('hazard') || q.includes('forest') || q.includes('condition') || q.includes('paved') || q.includes('surface') || q.includes('terrain')) {
-    return `Route A follows a well-paved arterial highway with ${rAData.constructionZones} construction hazard zones and only ${rAData.forestPercent || 4}% forest canopy. Route B passes through secondary bypass roads with ${rBData.constructionZones} unpaved/construction warning areas and ${rBData.forestPercent || 32}% isolated tree canopy stretches, which increases the likelihood of potholes and unexpected road obstacles.`
+  // 4. Deciding Between Routes / Recommendations ("which route", "which one", "recommend", "should i take", "best route", "choose", "what do you think")
+  if (q.includes('which route') || q.includes('which one') || q.includes('recommend') || q.includes('best route') || q.includes('should i') || q.includes('pick') || q.includes('choose') || q.includes('what do you think') || q.includes('better')) {
+    return `I definitely recommend taking Route A (${rAData.score}/100)! Even though Route B is about ${timeDiff} minutes faster, Route A has ${rAData.lighting}% continuous street lighting, full 5G coverage, and ${rAData.totalPois} safe havens. Route B has ${rBData.forestOrDarkZones}% unlit dark stretches, so Route A is the smart pick${isNight ? ', especially tonight' : ''}.`
   }
 
-  // 5. Time / Distance / Fastest / Shortest / ETA questions
-  if (q.includes('time') || q.includes('fast') || q.includes('short') || q.includes('long') || q.includes('distance') || q.includes('eta') || q.includes('quick') || q.includes('speed') || q.includes('duration') || q.includes('min') || q.includes('km')) {
-    const timeDiff = Math.abs(rAData.duration - rBData.duration)
-    return `Route B is the quicker option taking ${rBData.duration} mins (${rBData.distance} km), which is ${timeDiff} minute(s) faster than Route A (${rAData.duration} mins, ${rAData.distance} km). However, Route A achieves a safety score of ${rAData.score}/100 compared to Route B's ${rBData.score}/100, making Route A the smarter, safer trade-off.`
+  // 5. In a Rush / Speed vs Safety / Is Route B okay ("rush", "hurry", "fastest", "quickest", "save time", "is b bad", "can i take b", "take route b")
+  if (q.includes('rush') || q.includes('hurry') || q.includes('fast') || q.includes('quick') || q.includes('speed') || q.includes('save time') || q.includes('route b') || q.includes('shorter') || q.includes('shortest')) {
+    return `Route B is the quicker option taking ${rBData.duration} minutes (${timeDiff} min faster than Route A). If it's bright daylight and you're in a rush, Route B is fine. But for night travel or solo trips, Route A's ${rAData.lighting}% lighting and emergency checkpoints make it well worth the extra ${timeDiff} minutes.`
   }
 
-  // 6. Network / Cell / Signal / 5G / SOS questions
-  if (q.includes('network') || q.includes('signal') || q.includes('cell') || q.includes('tower') || q.includes('5g') || q.includes('4g') || q.includes('sos') || q.includes('phone') || q.includes('coverage')) {
-    return `Route A guarantees ${rAData.cellSignal}% high-density 5G/4G telecom coverage, ensuring that Emergency SOS dispatch and live GPS tracking remain uninterrupted. Route B provides approximately ${rBData.cellSignal}% cellular reliability, with occasional signal drops along unmonitored secondary roads.`
+  // 6. Night Travel / Lighting / Dark Stretches ("light", "lighting", "dark", "night", "visibility", "lamp", "sunset")
+  if (q.includes('light') || q.includes('dark') || q.includes('night') || q.includes('visibility') || q.includes('lamp') || q.includes('illum') || q.includes('sunset')) {
+    return `Lighting is a major factor here. Route A gives you ${rAData.lighting}% continuous high-luminance street lighting along a multi-lane highway. Route B drops to ${rBData.lighting}% lighting with ${rBData.forestOrDarkZones}% dark or tree canopy sections. ${isNight ? 'Since you are traveling at night, Route A is strongly recommended for visibility.' : 'If you might be returning after dusk, stick with Route A.'}`
   }
 
-  // 7. General Comparison / Which Route / Why / Recommendation
-  return `Comparing both paths from ${startName} to ${endName}: Route A (${rAData.score}/100) is strongly recommended over Route B (${rBData.score}/100). Route A wins across 5 of 6 safety factors—offering ${rAData.lighting}% lighting vs ${rBData.lighting}%, ${rAData.totalPois} safe havens vs ${rBData.totalPois}, and ${rAData.cellSignal}% cell signal vs ${rBData.cellSignal}%. While Route B is ${Math.abs(rAData.duration - rBData.duration)} min(s) faster, Route A provides significantly higher security and emergency readiness.`
+  // 7. Safety / Solo Travel / Women's Travel ("solo", "women", "alone", "safe", "scary", "danger", "crime", "threat")
+  if (q.includes('solo') || q.includes('women') || q.includes('woman') || q.includes('alone') || q.includes('safe') || q.includes('scary') || q.includes('danger') || q.includes('risk')) {
+    return `For solo or late-night travel, stick strictly to Route A. It follows an active commercial corridor with high vehicular traffic, full cellular signal (${rAData.cellSignal}%), and ${rAData.policeCount} active police checkpoint(s). Route B passes through secluded areas with less surveillance.`
+  }
+
+  // 8. Police, Hospitals, Safe Havens & Fuel ("police", "hospital", "doctor", "fuel", "petrol", "safe haven", "emergency", "help")
+  if (q.includes('police') || q.includes('hospital') || q.includes('doctor') || q.includes('fuel') || q.includes('petrol') || q.includes('haven') || q.includes('station') || q.includes('emergency')) {
+    return `Route A has ${rAData.totalPois} verified safe havens: ${rAData.policeCount} police post(s), ${rAData.hospitalCount} hospital(s), and ${rAData.fuelCount} 24/7 petrol bunk(s). Route B only has ${rBData.totalPois} safe stops and no direct hospital proximity.`
+  }
+
+  // 9. Road Conditions / Construction / Potholes / Forest ("road", "condition", "construction", "pothole", "forest", "bump", "rough")
+  if (q.includes('road') || q.includes('condition') || q.includes('construction') || q.includes('pothole') || q.includes('forest') || q.includes('paved') || q.includes('rough')) {
+    return `Route A is a wide, well-paved arterial highway with ${rAData.constructionZones} construction zone(s). Route B uses secondary roads with ${rBData.constructionZones} construction/pothole warning areas and ${rBData.forestPercent || 32}% tree canopy stretches, which can make maneuvering more difficult.`
+  }
+
+  // 10. Cellular Network & Emergency SOS ("network", "signal", "cell", "5g", "phone", "reception", "tower", "sos")
+  if (q.includes('network') || q.includes('signal') || q.includes('cell') || q.includes('5g') || q.includes('4g') || q.includes('phone') || q.includes('reception') || q.includes('sos')) {
+    return `Route A has ${rAData.cellSignal}% high-density cellular coverage, so GPS navigation and emergency SOS will stay connected. Route B drops to ${rBData.cellSignal}% with occasional dead zones along secondary roads.`
+  }
+
+  // 11. Courtesy / Thanks ("thank", "thanks", "thx", "awesome", "great", "cool", "helpful", "ok", "okay")
+  if (q.includes('thank') || q.includes('thx') || q.includes('awesome') || q.includes('great') || q.includes('cool') || q.includes('helpful') || q === 'ok' || q === 'okay') {
+    return `You're very welcome! Safe travels out there. Keep your headlights on and let me know if you need any more advice on route selection!`
+  }
+
+  // 12. Farewell ("bye", "goodbye", "cya", "leaving", "gotta go")
+  if (q.includes('bye') || q.includes('goodbye') || q.includes('cya') || q.includes('leaving')) {
+    return `Drive safe and stay alert! I'll be right here if you need more route guidance along the way.`
+  }
+
+  // 13. General Conversational Fallback focused on route selection
+  return `I'm here to help you pick the best path! Route A (${rAData.score}/100) is the safest choice with high lighting and emergency checkpoints, while Route B (${rBData.score}/100) is about ${timeDiff} minutes faster but has darker stretches. Feel free to ask which route is better for your specific travel needs!`
 }
 
 export default function AITelemetryPanel({ activeRoute, theme, routesData, onClose }) {
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [inputText, setInputText] = useState('')
-  const [chatHistory, setChatHistory] = useState([])
+  const [chatHistory, setChatHistory] = useState(() => {
+    const hasActiveTrip = routesData?.startName && routesData?.destName
+    if (hasActiveTrip) {
+      return [
+        {
+          sender: 'ai',
+          text: `Hey there! 🚗 I'm Surakshit AI, your route safety advisor. For your trip from ${routesData.startName} to ${routesData.destName}, I've analyzed Route A (Safest Highway) and Route B (Shorter Bypass). Which route are you considering, or would you like my advice?`,
+        },
+      ]
+    }
+    return [
+      {
+        sender: 'ai',
+        text: `Hey! 👋 I'm Surakshit AI, your route safety co-pilot. I specialize in helping you select the safest travel path based on street lighting, police stations, hospitals, and dark patches. Where are you heading today, or how can I assist with your route choice?`,
+      },
+    ]
+  })
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [systemContext, setSystemContext] = useState('')
   const [evaluationSummary, setEvaluationSummary] = useState('')
@@ -351,17 +400,20 @@ ROUTE B (Alternative Path):
   }, [activeRoute])
 
   // ── PART 3: Interactive User Doubt/Q&A Handler ─────────────────────────────
-  const handleSendMessage = async (e) => {
-    e.preventDefault()
-    if (!inputText.trim() || isAnalyzing) return
+  const sendUserMessage = async (rawQuestion) => {
+    if (!rawQuestion || !rawQuestion.trim() || isAnalyzing) return
 
-    const question = inputText.trim()
+    const question = rawQuestion.trim()
     setInputText('')
     setChatHistory((prev) => [...prev, { sender: 'user', text: question }])
     setIsAnalyzing(true)
 
-    const startLoc = routesData?.startName || 'Start Point'
-    const destLoc = routesData?.destName || 'Destination Point'
+    const startLoc = routesData?.startName || 'Your Starting Point'
+    const destLoc = routesData?.destName || 'Your Destination'
+    const now = new Date()
+    const currentTimeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    const hour = now.getHours()
+    const isNight = hour >= 18 || hour < 6
 
     const hubsA = countHubs(routeA.publicHubs || [])
     const hubsB = countHubs(routeB.publicHubs || [])
@@ -411,23 +463,28 @@ ROUTE B (Alternative Path):
         .map((m) => `${m.sender === 'user' ? 'User' : 'Assistant'}: ${m.text}`)
         .join('\n')
 
-      const followUpPrompt = `${systemContext || `Journey from ${startLoc} to ${destLoc}`}
+      const followUpPrompt = `${systemContext || `Journey: ${startLoc} to ${destLoc}`}
 
-Recent Conversation:
+Conversation History:
 ${conversationContext}
 
 User Message: "${question}"
 
 Instructions:
-You are Surakshit Path AI, a friendly, smart road-safety assistant.
-If the user greets you (e.g., 'hi', 'hello', 'hey'), greet them back warmly, mention the active journey from ${startLoc} to ${destLoc}, and ask how you can help them compare Route A (${rAData.score}/100) and Route B (${rBData.score}/100).
-If they ask a specific question about lighting, timing, police, hospitals, forest stretches, construction, or safety, answer directly using the exact route numbers in 2-3 natural sentences.
-Plain text only. Do not use markdown asterisks.`
+You are Surakshit AI, a warm, smart, and natural conversational travel assistant.
+Your #1 specialty and primary focus is ROUTE SELECTION (helping commuters compare and choose between Route A and Route B).
+
+How to talk:
+1. Talk back naturally, casually, and warmly like a modern AI chatbot (like ChatGPT or Google Assistant). Never sound robotic, formulaic, or overly bureaucratic.
+2. KEEP IT CONVERSATIONAL AND SHORT: 2 to 3 natural sentences max per response.
+3. Keep your focus on ROUTE SELECTION: whether the user is greeting you, asking for a recommendation, asking about time vs safety, or inquiring about solo travel, guide them clearly on which route to pick and why.
+4. If the user asks a casual greeting or question ("hi", "how are you", "what's up"), respond warmly like a real person, then ask which route they're thinking of taking or explain why Route A is recommended.
+5. Plain text only. Do not use asterisks (*), markdown formatting, or bullet points.`
 
       const cleanText = await callGemini(followUpPrompt, apiKey, 300)
       setChatHistory((prev) => [...prev, { sender: 'ai', text: cleanText }])
     } catch (err) {
-      // Smart contextual fallback based on user query intent
+      // Smart conversational fallback focused on route selection
       const contextualReply = generateContextualReply(question, rAData, rBData, startLoc, destLoc)
       setChatHistory((prev) => [...prev, { sender: 'ai', text: contextualReply }])
     } finally {
@@ -435,8 +492,17 @@ Plain text only. Do not use markdown asterisks.`
     }
   }
 
+  const handleSendMessage = (e) => {
+    e?.preventDefault()
+    sendUserMessage(inputText)
+  }
+
+  const handleQuickPrompt = (promptText) => {
+    sendUserMessage(promptText)
+  }
+
   return (
-    <div className="w-full h-full bg-card flex flex-col p-3.5 sm:p-4 select-none overflow-hidden font-mono border-l border-border transition-colors duration-200 relative">
+    <div className="w-full h-full bg-card flex flex-col p-3.5 sm:p-4 select-none overflow-hidden font-sans border-l border-border transition-colors duration-200 relative">
       
       {/* ── Google Gemini API Key Configuration Modal ── */}
       {showKeyModal && (
@@ -628,23 +694,43 @@ Plain text only. Do not use markdown asterisks.`
         ))}
 
         {isAnalyzing && (
-          <div className="flex items-center gap-2 text-xs font-mono text-primary bg-primary/10 border border-primary/20 px-3.5 py-2.5 rounded-2xl rounded-tl-sm mr-auto max-w-[90%] animate-pulse">
+          <div className="flex items-center gap-2 text-xs font-sans text-primary bg-primary/10 border border-primary/20 px-3.5 py-2.5 rounded-2xl rounded-tl-sm mr-auto max-w-[90%] animate-pulse">
             <Sparkles className="w-3.5 h-3.5 animate-spin" />
-            <span>AI is analyzing road telemetry...</span>
+            <span>Surakshit AI is thinking...</span>
           </div>
         )}
       </div>
 
-      {/* ── Bottom Input Field ── */}
-      <div className="pt-2 border-t border-border bg-card flex-shrink-0">
+      {/* ── Bottom Input & Quick Suggestion Chips ── */}
+      <div className="pt-2 border-t border-border bg-card flex-shrink-0 space-y-2">
+        {/* Quick Suggestion Chips focused on route selection */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+          {[
+            'Which route should I take?',
+            'Is Route B faster?',
+            "How's the street lighting?",
+            'Where are police & hospitals?',
+          ].map((pillText, pIdx) => (
+            <button
+              key={pIdx}
+              type="button"
+              onClick={() => handleQuickPrompt(pillText)}
+              disabled={isAnalyzing}
+              className="text-[11px] whitespace-nowrap bg-muted/60 hover:bg-muted text-foreground/80 hover:text-foreground border border-border px-3 py-1.5 rounded-full transition-colors shadow-2xs cursor-pointer font-sans disabled:opacity-50"
+            >
+              {pillText}
+            </button>
+          ))}
+        </div>
+
         <form onSubmit={handleSendMessage} className="flex items-center gap-2">
           <input
             type="text"
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             disabled={isAnalyzing}
-            placeholder="Ask about this route's network, lighting, or safe havens..."
-            className="flex-1 text-xs font-sans border border-border focus:border-primary outline-none px-3.5 py-2.5 bg-background text-foreground rounded-xl transition-colors disabled:opacity-50"
+            placeholder="Ask which route to take, lighting, police, safety..."
+            className="flex-1 text-xs font-sans border border-border focus:border-primary outline-none px-3.5 py-2.5 bg-background text-foreground rounded-xl transition-colors disabled:opacity-50 shadow-2xs"
           />
           <button
             type="submit"
