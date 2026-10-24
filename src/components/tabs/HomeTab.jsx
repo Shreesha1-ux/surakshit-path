@@ -67,7 +67,10 @@ export default function HomeTab({
       recognition.onresult = (event) => {
         const transcript = event.results?.[0]?.[0]?.transcript
         if (transcript) {
-          onNavigateToRoute(transcript)
+          const cleaned = transcript
+            .replace(/^(navigate to|take me to|directions to|route to|go to|to)\s+/i, '')
+            .trim()
+          onNavigateToRoute(cleaned || transcript)
         }
       }
       recognition.start()

@@ -143,8 +143,10 @@ const userGpsIcon = L.divIcon({
 
 // ─── Map Camera Controller ────────────────────────────────────────────────────
 
-function MapCameraController({ bounds }) {
+function MapCameraController({ bounds, userLocation }) {
   const map = useMap()
+  const initialPanDone = useRef(false)
+
   useEffect(() => {
     if (bounds && Array.isArray(bounds) && bounds.length >= 2) {
       try {
@@ -157,8 +159,11 @@ function MapCameraController({ bounds }) {
       } catch (e) {
         // Safe catch for invalid bounds
       }
+    } else if (!bounds && userLocation?.lat && userLocation?.lng && !initialPanDone.current) {
+      initialPanDone.current = true
+      map.setView([userLocation.lat, userLocation.lng], 15)
     }
-  }, [bounds, map])
+  }, [bounds, userLocation, map])
   return null
 }
 
@@ -392,13 +397,17 @@ export default function MapWorkspace({
   routesData,
   setRoutesData,
   userLocation,
+  userLocationName,
   onOpenAiChat,
   isMobile = true,
   autoExpandSearch = false,
 }) {
-  // Input fields & coordinates (starts empty at the beginning of the page)
-  const [startQuery, setStartQuery] = useState(routesData?.startName || '')
-  const [startCoords, setStartCoords] = useState(null)
+  // Input fields & coordinates
+  const initialStartCoords = routesData?.startCoords || (userLocation?.lat && userLocation?.lng ? [userLocation.lat, userLocation.lng] : null)
+  const initialStartName = routesData?.startName || (userLocationName && userLocationName !== 'Locating GPS...' ? userLocationName : (userLocation ? 'Current Location' : ''))
+
+  const [startQuery, setStartQuery] = useState(initialStartName)
+  const [startCoords, setStartCoords] = useState(initialStartCoords)
   const [startSuggestions, setStartSuggestions] = useState([])
   const [isSearchingStart, setIsSearchingStart] = useState(false)
   const [showStartDropdown, setShowStartDropdown] = useState(false)
@@ -434,6 +443,25 @@ export default function MapWorkspace({
     }
   }, [autoExpandSearch])
 
+  // Keep start coordinates & name synced with live GPS location
+  useEffect(() => {
+    if (userLocation?.lat && userLocation?.lng) {
+      const locCoords = [userLocation.lat, userLocation.lng]
+      const locName = userLocationName && userLocationName !== 'Locating GPS...'
+        ? userLocationName
+        : 'Current Location'
+
+      setStartCoords((prev) => (!prev || prev === DEFAULT_START ? locCoords : prev))
+      setStartQuery((prev) => {
+        if (!prev || prev === 'Your Location' || prev === 'Current Location' || prev === 'Locating GPS...' || prev === 'Koramangala 4th Block') {
+          return locName
+        }
+        return prev
+      })
+    }
+  }, [userLocation, userLocationName])
+
+  // Synchronize incoming routesData changes
   useEffect(() => {
     if (routesData?.destName && routesData.destName !== destQuery) {
       setDestQuery(routesData.destName)
@@ -441,7 +469,10 @@ export default function MapWorkspace({
     if (routesData?.startName && routesData.startName !== startQuery) {
       setStartQuery(routesData.startName)
     }
-  }, [routesData?.destName, routesData?.startName])
+    if (routesData?.startCoords && (!startCoords || routesData.startCoords !== startCoords)) {
+      setStartCoords(routesData.startCoords)
+    }
+  }, [routesData?.destName, routesData?.startName, routesData?.startCoords])
 
   // ── 1. Pan-India Location Autocomplete (Photon + Nominatim fallback) ─────────
 
@@ -540,7 +571,7 @@ export default function MapWorkspace({
     const effectiveStart = (startCoords && startCoords.length === 2)
       ? startCoords
       : (userLocation?.lat && userLocation?.lng ? [userLocation.lat, userLocation.lng] : DEFAULT_START)
-    const effectiveStartName = startQuery.trim() || 'Your Location'
+    const effectiveStartName = startQuery.trim() || (userLocationName && userLocationName !== 'Locating GPS...' ? userLocationName : 'Current Location')
 
     if (!startCoords || !startQuery.trim()) {
       setStartCoords(effectiveStart)
@@ -559,7 +590,7 @@ export default function MapWorkspace({
     const effectiveStart = (startCoords && startCoords.length === 2)
       ? startCoords
       : (userLocation?.lat && userLocation?.lng ? [userLocation.lat, userLocation.lng] : DEFAULT_START)
-    const effectiveStartName = startQuery.trim() || 'Your Location'
+    const effectiveStartName = startQuery.trim() || (userLocationName && userLocationName !== 'Locating GPS...' ? userLocationName : 'Current Location')
 
     if (!startCoords || !startQuery.trim()) {
       setStartCoords(effectiveStart)
@@ -586,24 +617,19 @@ export default function MapWorkspace({
     if (userLocation?.lat && userLocation?.lng) {
       const { lat, lng } = userLocation
       setStartCoords([lat, lng])
-      setStartQuery('Current Live Location')
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
-        if (res.ok) {
-          const data = await res.json()
-          if (data?.display_name) {
-            const shortName = data.display_name.split(',').slice(0, 3).join(', ')
-            setStartQuery(shortName)
-          }
-        }
-      } catch (e) {
-        // fallback
+      const locName = (userLocationName && userLocationName !== 'Locating GPS...')
+        ? userLocationName
+        : 'Current Location'
+      setStartQuery(locName)
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.flyTo([lat, lng], 15)
       }
       return
     }
 
     if (!('geolocation' in navigator)) {
-      alert('Geolocation is not supported by your browser.')
+      setStartCoords(DEFAULT_START)
+      setStartQuery('Koramangala, Bengaluru')
       return
     }
 
@@ -615,15 +641,17 @@ export default function MapWorkspace({
         setStartCoords([lat, lng])
         setStartQuery('Current Location')
         setIsLocating(false)
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.flyTo([lat, lng], 15)
+        }
 
         try {
           const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
           if (res.ok) {
             const data = await res.json()
-            if (data?.display_name) {
-              const shortName = data.display_name.split(',').slice(0, 3).join(', ')
-              setStartQuery(shortName)
-            }
+            const name = data.address?.neighbourhood || data.address?.suburb || data.address?.city_district || data.address?.city || 'Current Location'
+            const city = data.address?.city || data.address?.state || ''
+            setStartQuery(city ? `${name}, ${city}` : name)
           }
         } catch (e) {
           // fallback
@@ -631,9 +659,11 @@ export default function MapWorkspace({
       },
       (err) => {
         setIsLocating(false)
-        alert('Could not retrieve current location: ' + err.message)
+        console.warn('GPS location error:', err)
+        setStartCoords(DEFAULT_START)
+        setStartQuery('Koramangala, Bengaluru')
       },
-      { timeout: 10000, enableHighAccuracy: true }
+      { timeout: 8000, enableHighAccuracy: true }
     )
   }
 
@@ -1000,6 +1030,77 @@ export default function MapWorkspace({
 
   const calculateRoute = fetchRoutes
 
+  // Auto Routing trigger when navigating from Home Tab voice mic search
+  const autoFetchHandledRef = useRef('')
+  useEffect(() => {
+    if (routesData?.destName && routesData?.autoFetch) {
+      const fetchKey = `${routesData.startName || ''}->${routesData.destName}`
+      if (autoFetchHandledRef.current !== fetchKey) {
+        autoFetchHandledRef.current = fetchKey
+
+        const destToFetch = routesData.destName
+        const startToFetch = routesData.startCoords || (userLocation?.lat && userLocation?.lng ? [userLocation.lat, userLocation.lng] : DEFAULT_START)
+        const startNameToFetch = routesData.startName || (userLocationName && userLocationName !== 'Locating GPS...' ? userLocationName : 'Current Location')
+
+        setStartCoords(startToFetch)
+        setStartQuery(startNameToFetch)
+        setDestQuery(destToFetch)
+
+        // Reset autoFetch flag
+        if (setRoutesData) {
+          setRoutesData((prev) => ({ ...prev, autoFetch: false }))
+        }
+
+        // Auto geocode and fetch routes
+        const runAutoRouting = async () => {
+          setIsLoadingRoute(true)
+          let resolvedDest = null
+          let resolvedDestName = destToFetch
+
+          try {
+            // Fast Pan-India geocode with Photon
+            const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(destToFetch)}&limit=1`)
+            if (res.ok) {
+              const data = await res.json()
+              if (data?.features && data.features.length > 0) {
+                const feat = data.features[0]
+                resolvedDest = [feat.geometry.coordinates[1], feat.geometry.coordinates[0]]
+                const p = feat.properties || {}
+                const label = [p.name, p.district || p.suburb, p.city || p.state].filter(Boolean).join(', ')
+                if (label) resolvedDestName = label
+              }
+            }
+          } catch (e) {}
+
+          if (!resolvedDest) {
+            try {
+              const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(destToFetch)}&limit=1`)
+              if (res.ok) {
+                const data = await res.json()
+                if (data && data[0]) {
+                  resolvedDest = [parseFloat(data[0].lat), parseFloat(data[0].lon)]
+                  if (data[0].display_name) {
+                    resolvedDestName = data[0].display_name.split(',').slice(0, 3).join(', ')
+                  }
+                }
+              }
+            } catch (e) {}
+          }
+
+          if (resolvedDest) {
+            setDestCoords(resolvedDest)
+            setDestQuery(resolvedDestName)
+            await fetchRoutes(startToFetch, resolvedDest, startNameToFetch, resolvedDestName)
+          } else {
+            setIsLoadingRoute(false)
+          }
+        }
+
+        runAutoRouting()
+      }
+    }
+  }, [routesData?.destName, routesData?.autoFetch, routesData?.startName, routesData?.startCoords, userLocation, userLocationName, fetchRoutes, setRoutesData])
+
   // Only calculate when both start and destination points are provided
   useEffect(() => {
     if (startCoords && destCoords && startQuery && destQuery) {
@@ -1013,11 +1114,12 @@ export default function MapWorkspace({
 
     if (!trimmedDest && !trimmedStart) {
       const defaultStart = (userLocation?.lat && userLocation?.lng) ? [userLocation.lat, userLocation.lng] : DEFAULT_START
+      const defaultStartName = userLocationName && userLocationName !== 'Locating GPS...' ? userLocationName : 'Koramangala, Bengaluru'
       setStartCoords(defaultStart)
-      setStartQuery('Koramangala, Bangalore')
+      setStartQuery(defaultStartName)
       setDestCoords(DEFAULT_END)
       setDestQuery('Indiranagar, Bangalore')
-      await fetchRoutes(defaultStart, DEFAULT_END, 'Koramangala, Bangalore', 'Indiranagar, Bangalore')
+      await fetchRoutes(defaultStart, DEFAULT_END, defaultStartName, 'Indiranagar, Bangalore')
       return
     }
 
@@ -1025,12 +1127,12 @@ export default function MapWorkspace({
 
     // Determine starting point: userLocation, existing startCoords, or geocoded startQuery, or DEFAULT_START
     let finalStart = startCoords
-    let effectiveStartName = trimmedStart || 'Your Location'
+    let effectiveStartName = trimmedStart || (userLocationName && userLocationName !== 'Locating GPS...' ? userLocationName : 'Current Location')
 
     if (!finalStart) {
       if (!trimmedStart || trimmedStart.toLowerCase().includes('location') || trimmedStart.toLowerCase().includes('current')) {
         finalStart = (userLocation?.lat && userLocation?.lng) ? [userLocation.lat, userLocation.lng] : DEFAULT_START
-        effectiveStartName = 'Your Location'
+        effectiveStartName = userLocationName && userLocationName !== 'Locating GPS...' ? userLocationName : 'Current Location'
         setStartCoords(finalStart)
         setStartQuery(effectiveStartName)
       } else {
@@ -1048,7 +1150,7 @@ export default function MapWorkspace({
         }
         if (!finalStart) {
           finalStart = (userLocation?.lat && userLocation?.lng) ? [userLocation.lat, userLocation.lng] : DEFAULT_START
-          effectiveStartName = 'Your Location'
+          effectiveStartName = userLocationName && userLocationName !== 'Locating GPS...' ? userLocationName : 'Current Location'
           setStartCoords(finalStart)
           setStartQuery(effectiveStartName)
         }
@@ -1115,7 +1217,7 @@ export default function MapWorkspace({
         scrollWheelZoom={true}
         style={{ height: '100%', width: '100%', zIndex: 0 }}
       >
-        <MapCameraController bounds={mapBounds} />
+        <MapCameraController bounds={mapBounds} userLocation={userLocation} />
         <MapInstanceCapture onReady={(m) => { mapInstanceRef.current = m }} />
 
         {/* Dynamic Tile Layer (Standard OSM vs Esri Satellite) */}

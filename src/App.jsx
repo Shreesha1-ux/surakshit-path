@@ -77,7 +77,7 @@ export default function App() {
     }, duration)
   }
 
-  // 1. Continuous WatchPosition for High-Accuracy GPS
+  // 1. Instant & Continuous WatchPosition for High-Accuracy GPS
   useEffect(() => {
     if (!('geolocation' in navigator)) {
       setLocationError('Geolocation not supported by browser.')
@@ -85,29 +85,49 @@ export default function App() {
       return
     }
 
-    const watchId = navigator.geolocation.watchPosition(
-      async (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords
-        setUserLocation({ lat, lng })
-        setLocationError(null)
+    const applyLocation = async (lat, lng) => {
+      setUserLocation({ lat, lng })
+      setLocationError(null)
 
-        // Reverse-geocode to get landmark name
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
-          if (res.ok) {
-            const data = await res.json()
-            const name = data.address?.neighbourhood || data.address?.suburb || data.address?.city_district || data.address?.city || 'Current Location'
-            const city = data.address?.city || data.address?.state || 'Bengaluru'
-            setUserLocationName(`${name}, ${city}`)
-          }
-        } catch (e) {
-          setUserLocationName('Koramangala, Bengaluru')
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+        if (res.ok) {
+          const data = await res.json()
+          const name = data.address?.neighbourhood || data.address?.suburb || data.address?.city_district || data.address?.city || 'Current Location'
+          const city = data.address?.city || data.address?.state || ''
+          setUserLocationName(city ? `${name}, ${city}` : name)
+          return
         }
+      } catch (e) {}
+      setUserLocationName('Current Location')
+    }
+
+    // Instant instantaneous GPS lookup on mount
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        applyLocation(pos.coords.latitude, pos.coords.longitude)
+      },
+      (err) => {
+        console.warn('Initial GPS acquisition warning:', err.message)
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 8000,
+        maximumAge: 10000,
+      }
+    )
+
+    // Continuous real-time GPS tracking
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        applyLocation(pos.coords.latitude, pos.coords.longitude)
       },
       (err) => {
         console.warn('GPS location access error:', err.message)
         setLocationError(err.message)
-        setUserLocationName('Koramangala, Bengaluru')
+        if (!userLocation) {
+          setUserLocationName('Koramangala, Bengaluru')
+        }
       },
       {
         enableHighAccuracy: true,
@@ -185,9 +205,27 @@ export default function App() {
 
   // 4. Navigate to Route with Search
   const handleNavigateToRoute = (query = '') => {
-    if (query) {
-      setRoutesData((prev) => ({ ...prev, destName: query }))
+    let cleanDest = (query || '').trim()
+    if (cleanDest) {
+      cleanDest = cleanDest
+        .replace(/^(navigate to|take me to|directions to|route to|go to|to)\s+/i, '')
+        .trim()
     }
+
+    const currentLocName = (userLocationName && userLocationName !== 'Locating GPS...')
+      ? userLocationName
+      : 'Current Location'
+    const currentLocCoords = (userLocation?.lat && userLocation?.lng)
+      ? [userLocation.lat, userLocation.lng]
+      : null
+
+    setRoutesData((prev) => ({
+      ...prev,
+      startName: prev.startName || currentLocName,
+      startCoords: prev.startCoords || currentLocCoords,
+      ...(cleanDest ? { destName: cleanDest, autoFetch: true } : {}),
+    }))
+
     setAutoExpandRouteSearch(true)
     setActiveTab('route')
   }
@@ -267,6 +305,7 @@ export default function App() {
               routesData={routesData}
               setRoutesData={setRoutesData}
               userLocation={userLocation}
+              userLocationName={userLocationName}
               onOpenAiChat={() => setIsAiModalOpen(true)}
               autoExpandSearch={autoExpandRouteSearch}
             />

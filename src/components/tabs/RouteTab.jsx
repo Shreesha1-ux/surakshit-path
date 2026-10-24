@@ -8,6 +8,7 @@ export default function RouteTab({
   routesData,
   setRoutesData,
   userLocation,
+  userLocationName,
   onOpenAiChat,
   autoExpandSearch = false,
 }) {
@@ -20,6 +21,7 @@ export default function RouteTab({
         routesData={routesData}
         setRoutesData={setRoutesData}
         userLocation={userLocation}
+        userLocationName={userLocationName}
         onOpenAiChat={onOpenAiChat}
         isMobile={true}
         autoExpandSearch={autoExpandSearch}
