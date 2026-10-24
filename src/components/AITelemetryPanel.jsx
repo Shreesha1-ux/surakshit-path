@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { Volume2, Square, Send, Radio, Sparkles, Key, Settings, X, Check } from 'lucide-react'
 
 // Helper to count POIs by category
@@ -103,8 +103,13 @@ function generateContextualReply(userMessage, rAData, rBData, startName, endName
   }
 
   // 5. In a Rush / Speed vs Safety / Is Route B okay ("rush", "hurry", "fastest", "quickest", "save time", "is b bad", "can i take b", "take route b")
-  if (q.includes('rush') || q.includes('hurry') || q.includes('fast') || q.includes('quick') || q.includes('speed') || q.includes('save time') || q.includes('route b') || q.includes('shorter') || q.includes('shortest')) {
+  if (q.includes('rush') || q.includes('hurry') || q.includes('fast') || q.includes('quick') || q.includes('speed') || q.includes('save time') || q.includes('shorter') || q.includes('shortest')) {
     return `Route B is the quicker option taking ${rBData.duration} minutes (${timeDiff} min faster than Route A). If it's bright daylight and you're in a rush, Route B is fine. But for night travel or solo trips, Route A's ${rAData.lighting}% lighting and emergency checkpoints make it well worth the extra ${timeDiff} minutes.`
+  }
+
+  // 5b. Is Route B safe at night?
+  if ((q.includes('route b') || q.includes('b')) && (q.includes('night') || q.includes('dark') || q.includes('safe at night') || q.includes('safer at night'))) {
+    return `No, Route B is not recommended at night. It only provides ${rBData.lighting}% street lighting with ${rBData.forestOrDarkZones}% unlit dark stretches and zero hospital proximity. Route A is much safer at night (${rAData.score}/100) with continuous ${rAData.lighting}% illumination and verified safe havens.`
   }
 
   // 6. Night Travel / Lighting / Dark Stretches ("light", "lighting", "dark", "night", "visibility", "lamp", "sunset")
@@ -213,6 +218,76 @@ export default function AITelemetryPanel({ activeRoute, theme, routesData, onClo
 
   const currentRoute = routesData?.routes?.[activeRoute] || routeA
 
+  // Multi-factor route telemetry calculations
+  const hubsA = useMemo(() => countHubs(routeA.publicHubs || []), [routeA.publicHubs])
+  const hubsB = useMemo(() => countHubs(routeB.publicHubs || []), [routeB.publicHubs])
+
+  const rAData = useMemo(() => ({
+    score: routeA.safetyScore || 89,
+    duration: routeA.durationMin || 22,
+    distance: routeA.distanceKm || '6.2',
+    lighting: routeA.factors?.lighting?.score ?? routeA.highwayPercent ?? 80,
+    constructionZones: routeA.hazards?.length || (routeA.constructionPercent > 0 ? 1 : 0),
+    forestOrDarkZones: (routeA.darkPercent || 16) + (routeA.forestPercent || 4),
+    forestPercent: routeA.forestPercent || 4,
+    publicActivity: (routeA.highwayPercent || 80) >= 70 ? 'High (Active commercial & transit corridor)' : 'Moderate',
+    cellSignal: routeA.factors?.activity?.cellSignalPercent ?? routeA.networkCoverage ?? 98,
+    totalPois: routeA.factors?.support?.totalHubs ?? routeA.publicHubs?.length ?? 5,
+    policeCount: routeA.factors?.support?.policeCount ?? hubsA.police ?? 1,
+    hospitalCount: routeA.factors?.support?.hospitalCount ?? hubsA.hospital ?? 1,
+    busStandCount: routeA.factors?.support?.busStandCount ?? hubsA.bus ?? 1,
+    fuelCount: routeA.factors?.support?.fuelCount ?? hubsA.fuel ?? 2,
+  }), [routeA, hubsA])
+
+  const rBData = useMemo(() => ({
+    score: routeB.safetyScore || 68,
+    duration: routeB.durationMin || 20,
+    distance: routeB.distanceKm || '5.8',
+    lighting: routeB.factors?.lighting?.score ?? routeB.highwayPercent ?? 46,
+    constructionZones: routeB.hazards?.length || (routeB.constructionPercent > 0 ? 1 : 0),
+    forestOrDarkZones: (routeB.darkPercent || 18) + (routeB.forestPercent || 32),
+    forestPercent: routeB.forestPercent || 32,
+    publicActivity: (routeB.highwayPercent || 46) >= 70 ? 'High' : 'Moderate to Low (Secondary unmonitored roads)',
+    cellSignal: routeB.factors?.activity?.cellSignalPercent ?? routeB.networkCoverage ?? 75,
+    totalPois: routeB.factors?.support?.totalHubs ?? routeB.publicHubs?.length ?? 3,
+    policeCount: routeB.factors?.support?.policeCount ?? hubsB.police ?? 1,
+    hospitalCount: routeB.factors?.support?.hospitalCount ?? hubsB.hospital ?? 0,
+    busStandCount: routeB.factors?.support?.busStandCount ?? hubsB.bus ?? 1,
+    fuelCount: routeB.factors?.support?.fuelCount ?? hubsB.fuel ?? 1,
+  }), [routeB, hubsB])
+
+  const winner = useMemo(() => {
+    if (rAData.score >= rBData.score) {
+      return {
+        id: 'A',
+        name: 'Route A',
+        score: rAData.score,
+        otherId: 'B',
+        otherScore: rBData.score,
+        duration: rAData.duration,
+        otherDuration: rBData.duration,
+        timeDiff: Math.abs(rAData.duration - rBData.duration),
+      }
+    }
+    return {
+      id: 'B',
+      name: 'Route B',
+      score: rBData.score,
+      otherId: 'A',
+      otherScore: rAData.score,
+      duration: rBData.duration,
+      otherDuration: rAData.duration,
+      timeDiff: Math.abs(rAData.duration - rBData.duration),
+    }
+  }, [rAData, rBData])
+
+  const verdictSummary = useMemo(() => {
+    if (winner.id === 'A') {
+      return `Route A is recommended because it features superior street lighting (${rAData.lighting}% vs ${rBData.lighting}%) and ${rAData.totalPois} verified safe havens (${rAData.policeCount} police, ${rAData.hospitalCount} hospital), minimizing nighttime risks.`
+    }
+    return `Route B is recommended (${winner.score}/100) because it offers smooth highway connectivity and a faster travel time of ${winner.duration} mins with ${rBData.totalPois} verified safe havens.`
+  }, [winner, rAData, rBData])
+
   // Check API key on mount and setup input state
   useEffect(() => {
     const key = getEffectiveApiKey()
@@ -263,43 +338,6 @@ export default function AITelemetryPanel({ activeRoute, theme, routesData, onClo
     const currentTimeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     const hour = now.getHours()
     const isNight = hour >= 18 || hour < 6
-
-    const hubsA = countHubs(routeA.publicHubs || [])
-    const hubsB = countHubs(routeB.publicHubs || [])
-
-    const rAData = {
-      score: routeA.safetyScore || 89,
-      duration: routeA.durationMin || 22,
-      distance: routeA.distanceKm || '6.2',
-      lighting: routeA.factors?.lighting?.score ?? routeA.highwayPercent ?? 80,
-      constructionZones: routeA.hazards?.length || (routeA.constructionPercent > 0 ? 1 : 0),
-      forestOrDarkZones: (routeA.darkPercent || 16) + (routeA.forestPercent || 4),
-      forestPercent: routeA.forestPercent || 4,
-      publicActivity: (routeA.highwayPercent || 80) >= 70 ? 'High (Active commercial & transit corridor)' : 'Moderate',
-      cellSignal: routeA.factors?.activity?.cellSignalPercent ?? routeA.networkCoverage ?? 98,
-      totalPois: routeA.factors?.support?.totalHubs ?? routeA.publicHubs?.length ?? 5,
-      policeCount: routeA.factors?.support?.policeCount ?? hubsA.police ?? 1,
-      hospitalCount: routeA.factors?.support?.hospitalCount ?? hubsA.hospital ?? 1,
-      busStandCount: routeA.factors?.support?.busStandCount ?? hubsA.bus ?? 1,
-      fuelCount: routeA.factors?.support?.fuelCount ?? hubsA.fuel ?? 2,
-    }
-
-    const rBData = {
-      score: routeB.safetyScore || 68,
-      duration: routeB.durationMin || 20,
-      distance: routeB.distanceKm || '5.8',
-      lighting: routeB.factors?.lighting?.score ?? routeB.highwayPercent ?? 46,
-      constructionZones: routeB.hazards?.length || (routeB.constructionPercent > 0 ? 1 : 0),
-      forestOrDarkZones: (routeB.darkPercent || 18) + (routeB.forestPercent || 32),
-      forestPercent: routeB.forestPercent || 32,
-      publicActivity: (routeB.highwayPercent || 46) >= 70 ? 'High' : 'Moderate to Low (Secondary unmonitored roads)',
-      cellSignal: routeB.factors?.activity?.cellSignalPercent ?? routeB.networkCoverage ?? 75,
-      totalPois: routeB.factors?.support?.totalHubs ?? routeB.publicHubs?.length ?? 3,
-      policeCount: routeB.factors?.support?.policeCount ?? hubsB.police ?? 1,
-      hospitalCount: routeB.factors?.support?.hospitalCount ?? hubsB.hospital ?? 0,
-      busStandCount: routeB.factors?.support?.busStandCount ?? hubsB.bus ?? 1,
-      fuelCount: routeB.factors?.support?.fuelCount ?? hubsB.fuel ?? 1,
-    }
 
     const contextString = `You are Surakshit Path AI, an intelligent safety navigation assistant.
 Journey: From "${startLoc}" to "${destLoc}".
@@ -354,15 +392,25 @@ ROUTE B (Alternative Path):
     executeInitialEvaluation()
   }, [routesData, routeA, routeB])
 
-  // Auto-scroll chat container to bottom on new messages
+  // Auto-scroll chat container to bottom on user conversation updates
   useEffect(() => {
-    if (chatScrollRef.current) {
+    if (chatScrollRef.current && chatHistory.length > 1) {
       chatScrollRef.current.scrollTo({
         top: chatScrollRef.current.scrollHeight,
         behavior: 'smooth',
       })
     }
   }, [chatHistory, isAnalyzing])
+
+  // Scroll to top when routes are evaluated or updated so the breakdown dashboard is immediately visible
+  useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTo({
+        top: 0,
+        behavior: 'smooth',
+      })
+    }
+  }, [routesData])
 
   // ── Voice Audio Readout Logic (Reads the latest AI response) ────────────────
   const handlePlayVoice = () => {
@@ -373,7 +421,7 @@ ROUTE B (Alternative Path):
 
     window.speechSynthesis.cancel()
 
-    const latestAiMessage = [...chatHistory].reverse().find((m) => m.sender === 'ai')?.text || evaluationSummary || currentRoute.evaluationText
+    const latestAiMessage = [...chatHistory].reverse().find((m) => m.sender === 'ai')?.text || verdictSummary || evaluationSummary || currentRoute.evaluationText
     const utterance = new SpeechSynthesisUtterance(latestAiMessage)
     utterance.rate = 0.95
     utterance.pitch = 1.0
@@ -410,47 +458,6 @@ ROUTE B (Alternative Path):
 
     const startLoc = routesData?.startName || 'Your Starting Point'
     const destLoc = routesData?.destName || 'Your Destination'
-    const now = new Date()
-    const currentTimeString = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    const hour = now.getHours()
-    const isNight = hour >= 18 || hour < 6
-
-    const hubsA = countHubs(routeA.publicHubs || [])
-    const hubsB = countHubs(routeB.publicHubs || [])
-
-    const rAData = {
-      score: routeA.safetyScore || 89,
-      duration: routeA.durationMin || 22,
-      distance: routeA.distanceKm || '6.2',
-      lighting: routeA.factors?.lighting?.score ?? routeA.highwayPercent ?? 80,
-      constructionZones: routeA.hazards?.length || (routeA.constructionPercent > 0 ? 1 : 0),
-      forestOrDarkZones: (routeA.darkPercent || 16) + (routeA.forestPercent || 4),
-      forestPercent: routeA.forestPercent || 4,
-      publicActivity: (routeA.highwayPercent || 80) >= 70 ? 'High (Active commercial & transit corridor)' : 'Moderate',
-      cellSignal: routeA.factors?.activity?.cellSignalPercent ?? routeA.networkCoverage ?? 98,
-      totalPois: routeA.factors?.support?.totalHubs ?? routeA.publicHubs?.length ?? 5,
-      policeCount: routeA.factors?.support?.policeCount ?? hubsA.police ?? 1,
-      hospitalCount: routeA.factors?.support?.hospitalCount ?? hubsA.hospital ?? 1,
-      busStandCount: routeA.factors?.support?.busStandCount ?? hubsA.bus ?? 1,
-      fuelCount: routeA.factors?.support?.fuelCount ?? hubsA.fuel ?? 2,
-    }
-
-    const rBData = {
-      score: routeB.safetyScore || 68,
-      duration: routeB.durationMin || 20,
-      distance: routeB.distanceKm || '5.8',
-      lighting: routeB.factors?.lighting?.score ?? routeB.highwayPercent ?? 46,
-      constructionZones: routeB.hazards?.length || (routeB.constructionPercent > 0 ? 1 : 0),
-      forestOrDarkZones: (routeB.darkPercent || 18) + (routeB.forestPercent || 32),
-      forestPercent: routeB.forestPercent || 32,
-      publicActivity: (routeB.highwayPercent || 46) >= 70 ? 'High' : 'Moderate to Low (Secondary unmonitored roads)',
-      cellSignal: routeB.factors?.activity?.cellSignalPercent ?? routeB.networkCoverage ?? 75,
-      totalPois: routeB.factors?.support?.totalHubs ?? routeB.publicHubs?.length ?? 3,
-      policeCount: routeB.factors?.support?.policeCount ?? hubsB.police ?? 1,
-      hospitalCount: routeB.factors?.support?.hospitalCount ?? hubsB.hospital ?? 0,
-      busStandCount: routeB.factors?.support?.busStandCount ?? hubsB.bus ?? 1,
-      fuelCount: routeB.factors?.support?.fuelCount ?? hubsB.fuel ?? 1,
-    }
 
     try {
       const apiKey = getEffectiveApiKey()
@@ -576,129 +583,293 @@ How to talk:
         </div>
       )}
 
-      {/* Top Section: Header, [AI] Route Evaluation, and Voice Audio Controls */}
-      <div className="space-y-3 flex-shrink-0">
-        {/* Top Header Label */}
-        <div className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center justify-between border-b border-border pb-1.5">
-          <div className="flex items-center gap-2">
-            <span className="font-bold flex items-center gap-1.5 text-foreground">
-              <Radio className="w-3.5 h-3.5 text-primary animate-pulse" />
-              <span>&lt; AI TELEMETRY &gt;</span>
+      {/* Top Header Bar */}
+      <div className="text-[10px] text-muted-foreground uppercase tracking-wider flex items-center justify-between border-b border-border pb-2 mb-2 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <span className="font-bold flex items-center gap-1.5 text-foreground">
+            <Radio className="w-3.5 h-3.5 text-primary animate-pulse" />
+            <span>&lt; AI TELEMETRY &gt;</span>
+          </span>
+          {hasApiKey ? (
+            <button
+              type="button"
+              onClick={() => setShowKeyModal(true)}
+              className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1 cursor-pointer hover:bg-emerald-500/25 transition-colors"
+              title="Google Gemini AI is Live (Click to configure key)"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>AI Live</span>
+              <Key className="w-2.5 h-2.5 ml-0.5 opacity-70" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowKeyModal(true)}
+              className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-700 flex items-center gap-1 cursor-pointer transition-colors"
+              title="Connect your Google Gemini API Key for live AI responses"
+            >
+              <Key className="w-2.5 h-2.5 text-primary" />
+              <span>Set Key</span>
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-primary font-bold">
+            {routesData?.startName && routesData?.destName && currentRoute?.distanceKm ? `${currentRoute.distanceKm} km • ${currentRoute.durationMin} min` : 'Awaiting Route'}
+          </span>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1 rounded-full text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+              title="Close AI Assistant"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Main Scrollable Container (Dashboard + Audio Controls + Chat History) ── */}
+      <div 
+        ref={chatScrollRef} 
+        className="flex-1 overflow-y-auto space-y-3.5 pr-0.5 no-scrollbar"
+      >
+        {/* ── 1. Clean Factor Breakdown Dashboard ── */}
+        <div className="bg-white dark:bg-neutral-800 rounded-2xl p-4 shadow-xs border border-slate-100 dark:border-neutral-700/80 space-y-3">
+          {/* Header */}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 tracking-wider">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+              <span>AI Safety Factor Breakdown</span>
+            </div>
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200/70 dark:border-indigo-800/60 shadow-2xs">
+              ⭐ Route {winner.id} Recommended ({winner.score}/100)
             </span>
-            {hasApiKey ? (
-              <button
-                type="button"
-                onClick={() => setShowKeyModal(true)}
-                className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1 cursor-pointer hover:bg-emerald-500/25 transition-colors"
-                title="Google Gemini AI is Live (Click to configure key)"
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>AI Live</span>
-                <Key className="w-2.5 h-2.5 ml-0.5 opacity-70" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setShowKeyModal(true)}
-                className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-300 border border-neutral-300 dark:border-neutral-700 flex items-center gap-1 cursor-pointer transition-colors"
-                title="Connect your Google Gemini API Key for live AI responses"
-              >
-                <Key className="w-2.5 h-2.5 text-primary" />
-                <span>Set Key</span>
-              </button>
-            )}
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-primary font-bold">
-              {routesData?.startName && routesData?.destName && currentRoute?.distanceKm ? `${currentRoute.distanceKm} km • ${currentRoute.durationMin} min` : 'Awaiting Route'}
-            </span>
-            {onClose && (
-              <button
-                type="button"
-                onClick={onClose}
-                className="p-1 rounded-full text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
-                title="Close AI Assistant"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+
+          {/* Factor Comparison Cards (Side-by-Side or Clean Progress Rows) */}
+          <div className="space-y-2">
+            {/* 1. Street Lighting */}
+            <div className="bg-slate-50/80 dark:bg-neutral-900/60 rounded-xl p-2.5 border border-slate-100 dark:border-neutral-800 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <span>💡</span> Street Lighting (Night Visibility)
+                </span>
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded-full">
+                  Route A +{Math.max(0, rAData.lighting - rBData.lighting)}% Brighter
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400 font-medium">
+                    <span>Route A</span>
+                    <span className="font-bold text-indigo-600 dark:text-indigo-400">{rAData.lighting}%</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-slate-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-indigo-600 rounded-full transition-all duration-500" style={{ width: `${rAData.lighting}%` }} />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400 font-medium">
+                    <span>Route B</span>
+                    <span className="font-bold text-slate-700 dark:text-slate-300">{rBData.lighting}%</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-slate-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-slate-400 dark:bg-neutral-500 rounded-full transition-all duration-500" style={{ width: `${rBData.lighting}%` }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Public Support (Safe Havens) */}
+            <div className="bg-slate-50/80 dark:bg-neutral-900/60 rounded-xl p-2.5 border border-slate-100 dark:border-neutral-800 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <span>🛡️</span> Public Support (Safe Havens)
+                </span>
+                <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded-full">
+                  {rAData.totalPois} vs {rBData.totalPois} Havens
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="p-2 rounded-lg bg-white dark:bg-neutral-800/90 border border-slate-100 dark:border-neutral-700 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-indigo-600 dark:text-indigo-400">Route A</span>
+                    <span className="font-extrabold text-slate-800 dark:text-slate-100">{rAData.totalPois} Havens</span>
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 flex flex-wrap gap-1">
+                    <span className="bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded font-medium">👮 {rAData.policeCount} Police</span>
+                    <span className="bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 px-1.5 py-0.5 rounded font-medium">🏥 {rAData.hospitalCount} Hospital</span>
+                    <span className="bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded font-medium">⛽ {rAData.fuelCount} Fuel</span>
+                  </div>
+                </div>
+                <div className="p-2 rounded-lg bg-white dark:bg-neutral-800/90 border border-slate-100 dark:border-neutral-700 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-700 dark:text-slate-300">Route B</span>
+                    <span className="font-extrabold text-slate-800 dark:text-slate-100">{rBData.totalPois} Havens</span>
+                  </div>
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 flex flex-wrap gap-1">
+                    <span className="bg-slate-100 dark:bg-neutral-700 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded font-medium">👮 {rBData.policeCount} Police</span>
+                    <span className="bg-slate-100 dark:bg-neutral-700 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded font-medium">🏥 {rBData.hospitalCount} Hospital</span>
+                    <span className="bg-slate-100 dark:bg-neutral-700 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded font-medium">⛽ {rBData.fuelCount} Fuel</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Cellular / Network Signal */}
+            <div className="bg-slate-50/80 dark:bg-neutral-900/60 rounded-xl p-2.5 border border-slate-100 dark:border-neutral-800 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <span>📶</span> Cellular / Network Signal
+                </span>
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded-full">
+                  Route A High SOS Reliability
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400 font-medium">
+                    <span>Route A</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">{rAData.cellSignal}% (5G)</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-slate-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${rAData.cellSignal}%` }} />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400 font-medium">
+                    <span>Route B</span>
+                    <span className="font-bold text-slate-700 dark:text-slate-300">{rBData.cellSignal}% (4G)</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-slate-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{ width: `${rBData.cellSignal}%` }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Road Conditions & Hazards */}
+            <div className="bg-slate-50/80 dark:bg-neutral-900/60 rounded-xl p-2.5 border border-slate-100 dark:border-neutral-800 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <span>🚧</span> Road Conditions & Hazards
+                </span>
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${rAData.constructionZones === 0 ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50' : 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50'}`}>
+                  {rAData.constructionZones === 0 ? 'Paved Arterial Highway' : 'Active Hazard Zones'}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="p-2 rounded-lg bg-white dark:bg-neutral-800/90 border border-slate-100 dark:border-neutral-700 flex items-center justify-between">
+                  <span className="font-medium text-slate-600 dark:text-slate-400">Route A</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                    {rAData.constructionZones === 0 ? '0 Hazards (0%)' : `${rAData.constructionZones} Hazard (-5%)`}
+                  </span>
+                </div>
+                <div className="p-2 rounded-lg bg-white dark:bg-neutral-800/90 border border-slate-100 dark:border-neutral-700 flex items-center justify-between">
+                  <span className="font-medium text-slate-600 dark:text-slate-400">Route B</span>
+                  <span className="font-bold text-amber-600 dark:text-amber-400">
+                    {rBData.constructionZones} Hazard ({routeB.constructionPercent || 4}% penalty)
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 5. Dark & Forest Stretches */}
+            <div className="bg-slate-50/80 dark:bg-neutral-900/60 rounded-xl p-2.5 border border-slate-100 dark:border-neutral-800 space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <span>🌲</span> Dark & Forest Stretches
+                </span>
+                <span className="text-[10px] font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 px-1.5 py-0.5 rounded-full">
+                  Route B {rBData.forestOrDarkZones}% Isolated
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="space-y-1">
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400 font-medium">
+                    <span>Route A</span>
+                    <span className="font-bold text-emerald-600 dark:text-emerald-400">{rAData.forestOrDarkZones}% (Low Risk)</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-slate-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${rAData.forestOrDarkZones}%` }} />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between text-slate-600 dark:text-slate-400 font-medium">
+                    <span>Route B</span>
+                    <span className="font-bold text-rose-600 dark:text-rose-400">{rBData.forestOrDarkZones}% (Night Risk)</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-slate-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-rose-500 rounded-full transition-all duration-500" style={{ width: `${rBData.forestOrDarkZones}%` }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Explainable Verdict Summary */}
+          <div className="rounded-xl bg-indigo-50/90 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 p-3 text-xs text-indigo-950 dark:text-indigo-200 leading-relaxed font-medium flex items-start gap-2 shadow-2xs">
+            <span className="text-sm shrink-0">💡</span>
+            <p>
+              {verdictSummary}
+            </p>
           </div>
         </div>
 
-        {/* [AI] ROUTE EVALUATION Text Block */}
-        <div className="border border-border p-3.5 bg-accent/30 rounded-xl shadow-sm">
-          <div className="font-bold text-xs uppercase tracking-tight text-foreground mb-1.5 flex items-center justify-between font-mono">
-            <span className="text-primary flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-primary" />
-              <span>[AI] ROUTE EVALUATION:</span>
-            </span>
-            {isSpeaking && (
-              <span className="text-[10px] font-normal text-primary animate-pulse flex items-center gap-1">
-                <Volume2 className="w-3 h-3" /> Speaking...
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-foreground/90 leading-relaxed font-sans">
-            {evaluationSummary || (routesData?.startName && routesData?.destName ? currentRoute?.evaluationText : 'Enter a starting point and destination in the map search panel to begin AI safety evaluation.')}
-          </p>
-        </div>
-
-        {/* Blue PLAY VOICE and STOP button row */}
+        {/* ── 2. Audio Buttons Directly Below Dashboard ── */}
         <div className="grid grid-cols-2 gap-2">
           <button
+            type="button"
             onClick={handlePlayVoice}
-            className={`py-2 px-3 text-xs font-semibold uppercase tracking-wider rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
+            className={`py-2.5 px-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-sm ${
               isSpeaking 
-                ? 'bg-foreground text-background' 
-                : 'bg-primary hover:opacity-90 text-primary-foreground shadow-sm'
+                ? 'bg-neutral-900 text-white dark:bg-white dark:text-neutral-900' 
+                : 'bg-indigo-600 hover:bg-indigo-700 text-white'
             }`}
           >
-            <Volume2 className="w-3.5 h-3.5" />
-            <span>Play Voice</span>
+            <Volume2 className={`w-3.5 h-3.5 ${isSpeaking ? 'animate-pulse' : ''}`} />
+            <span>{isSpeaking ? 'Speaking...' : 'Play Voice'}</span>
           </button>
 
           <button
+            type="button"
             onClick={handleStopVoice}
-            className="py-2 px-3 text-xs font-semibold uppercase tracking-wider border border-border text-muted-foreground hover:text-foreground hover:border-foreground/50 bg-card rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+            className="py-2.5 px-3 text-xs font-semibold uppercase tracking-wider border border-border text-muted-foreground hover:text-foreground hover:border-foreground/50 bg-card rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs"
           >
             <Square className="w-3.5 h-3.5" />
             <span>Stop</span>
           </button>
         </div>
-      </div>
 
-      {/* ── Flexible, Scrollable Chat Feed Container ── */}
-      <div 
-        ref={chatScrollRef} 
-        className="flex-1 overflow-y-auto my-4 p-4 bg-neutral-50/70 dark:bg-neutral-900/50 rounded-2xl border border-neutral-200 dark:border-neutral-800 space-y-3"
-      >
-        {chatHistory.length === 0 && !isAnalyzing && (
-          <div className="flex flex-col items-center justify-center h-full text-center p-6 text-neutral-400 dark:text-neutral-500 font-sans space-y-2 select-none">
-            <Sparkles className="w-6 h-6 text-primary/60 mb-1" />
-            <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">Ready for route safety analysis</p>
-            <p className="text-[11px] text-muted-foreground leading-relaxed">Select your origin and destination in the map search panel to compare route lighting, telecom signals, and safe havens.</p>
+        {/* ── 3. Scrollable Chat History ── */}
+        <div className="space-y-3 pt-1">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground uppercase tracking-wider px-1">
+            <Sparkles className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+            <span>AI Route Q&A</span>
           </div>
-        )}
 
-        {chatHistory.map((msg, idx) => (
-          <div
-            key={idx}
-            className={
-              msg.sender === 'user'
-                ? 'bg-neutral-900 text-white dark:bg-blue-600 px-4 py-2.5 rounded-2xl rounded-tr-sm ml-auto max-w-[85%] text-sm shadow-sm font-sans break-words'
-                : 'bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 text-neutral-800 dark:text-neutral-100 px-4 py-3 rounded-2xl rounded-tl-sm mr-auto max-w-[90%] text-sm leading-relaxed shadow-sm font-sans break-words'
-            }
-          >
-            {msg.text}
-          </div>
-        ))}
+          {chatHistory.map((msg, idx) => (
+            <div
+              key={idx}
+              className={
+                msg.sender === 'user'
+                  ? 'bg-neutral-900 text-white dark:bg-indigo-600 px-4 py-2.5 rounded-2xl rounded-tr-sm ml-auto max-w-[85%] text-xs shadow-sm font-sans break-words'
+                  : 'bg-white dark:bg-neutral-800 border border-slate-100 dark:border-neutral-700 text-slate-800 dark:text-slate-100 px-4 py-3 rounded-2xl rounded-tl-sm mr-auto max-w-[92%] text-xs leading-relaxed shadow-sm font-sans break-words'
+              }
+            >
+              {msg.text}
+            </div>
+          ))}
 
-        {isAnalyzing && (
-          <div className="flex items-center gap-2 text-xs font-sans text-primary bg-primary/10 border border-primary/20 px-3.5 py-2.5 rounded-2xl rounded-tl-sm mr-auto max-w-[90%] animate-pulse">
-            <Sparkles className="w-3.5 h-3.5 animate-spin" />
-            <span>Surakshit AI is thinking...</span>
-          </div>
-        )}
+          {isAnalyzing && (
+            <div className="flex items-center gap-2 text-xs font-sans text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200/50 dark:border-indigo-800/40 px-3.5 py-2.5 rounded-2xl rounded-tl-sm mr-auto max-w-[90%] animate-pulse">
+              <Sparkles className="w-3.5 h-3.5 animate-spin" />
+              <span>Surakshit AI is analyzing...</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Bottom Input & Quick Suggestion Chips ── */}
@@ -707,8 +878,8 @@ How to talk:
         <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
           {[
             'Which route should I take?',
-            'Is Route B faster?',
-            "How's the street lighting?",
+            'Is Route B safer at night?',
+            "How's the lighting?",
             'Where are police & hospitals?',
           ].map((pillText, pIdx) => (
             <button
@@ -730,12 +901,12 @@ How to talk:
             onChange={(e) => setInputText(e.target.value)}
             disabled={isAnalyzing}
             placeholder="Ask which route to take, lighting, police, safety..."
-            className="flex-1 text-xs font-sans border border-border focus:border-primary outline-none px-3.5 py-2.5 bg-background text-foreground rounded-xl transition-colors disabled:opacity-50 shadow-2xs"
+            className="flex-1 text-xs font-sans border border-border focus:border-indigo-600 outline-none px-3.5 py-2.5 bg-background text-foreground rounded-xl transition-colors disabled:opacity-50 shadow-2xs"
           />
           <button
             type="submit"
             disabled={isAnalyzing || !inputText.trim()}
-            className="w-9 h-9 bg-primary hover:opacity-90 disabled:opacity-50 text-primary-foreground transition-colors flex items-center justify-center font-bold text-xs flex-shrink-0 cursor-pointer rounded-xl shadow-sm"
+            className="w-9 h-9 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white transition-colors flex items-center justify-center font-bold text-xs flex-shrink-0 cursor-pointer rounded-xl shadow-sm"
             aria-label="Send query"
           >
             <Send className="w-4 h-4" />
