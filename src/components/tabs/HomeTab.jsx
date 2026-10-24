@@ -92,11 +92,11 @@ export default function HomeTab({
         {/* Left Side: Custom App Logo + Greeting */}
         <div className="flex items-center gap-3">
           {/* Official SurakshitPath App Logo Icon */}
-          <div className="w-11 h-11 rounded-[18px] bg-white shadow-[0_4px_16px_rgba(0,0,0,0.06)] p-1.5 flex items-center justify-center shrink-0 border border-slate-100/60 overflow-hidden">
+          <div className="w-[52px] h-[52px] rounded-[20px] bg-white shadow-[0_6px_20px_rgba(30,27,75,0.08)] p-1.5 flex items-center justify-center shrink-0 border border-slate-100/80 overflow-hidden">
             <img
               src="/logo-icon.png"
               alt="Surakshit Path Logo"
-              className="w-full h-full object-contain"
+              className="w-full h-full object-contain select-none"
             />
           </div>
 
