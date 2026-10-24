@@ -32,24 +32,6 @@ export default function HomeTab({
   const [isRecentActivityOpen, setIsRecentActivityOpen] = useState(false)
   const [isListening, setIsListening] = useState(false)
 
-  // Dynamic time-of-day greeting (Good morning, Good afternoon, Good evening)
-  const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Good morning,' : hour < 17 ? 'Good afternoon,' : 'Good evening,'
-
-  // User name (defaults to "there." as seen in reference screenshot)
-  const [userName] = useState(() => {
-    try {
-      const saved = localStorage.getItem('surakshit_user_profile')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (parsed?.name && parsed.name.toLowerCase() !== 'kanav' && parsed.name.toLowerCase() !== 'user') {
-          return `${parsed.name}.`
-        }
-      }
-    } catch (e) {}
-    return 'there.'
-  })
-
   // Quick voice query mock or browser speech recognition
   const handleVoiceSearch = (e) => {
     e.stopPropagation()
@@ -100,13 +82,18 @@ export default function HomeTab({
             />
           </div>
 
-          {/* Greeting Text Stack */}
-          <div className="flex flex-col">
-            <span className="text-sm font-medium text-slate-500 leading-tight">
-              {greeting}
-            </span>
-            <span className="text-2xl font-extrabold text-[#1E1B4B] leading-tight tracking-tight">
-              {userName}
+          {/* Brand Name & Tagline Stack */}
+          <div className="flex flex-col justify-center">
+            <div className="flex items-center gap-1.5 leading-tight">
+              <span className="text-xl font-extrabold text-[#1E1B4B] tracking-tight">
+                Surakshit
+              </span>
+              <span className="text-xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-[#7A1C49] via-[#C72C41] to-[#EA580C] tracking-tight">
+                Path
+              </span>
+            </div>
+            <span className="text-[11px] font-semibold text-slate-500 tracking-tight leading-tight mt-0.5">
+              Beyond Directions. Towards Safety.
             </span>
           </div>
         </div>
